@@ -14,6 +14,11 @@ internal sealed class FakeOptimizeService : IOptimizeService
     public bool ThrowOnGaming;
     public bool GamingActive;
 
+    public int LogicalCoreCount { get; set; } = 8;
+    public bool CoreCageEnabledValue { get; set; } = true;
+    public int CoreCageReservedCoresValue { get; set; } = 4;
+    public int CoreCageEnabledWrites, CoreCageReservedCoresWrites;
+
     public OptimizeResult GamingResult { get; set; } = new(true, "Gaming Mode applied.");
     public OptimizeResult RestoreResult { get; set; } = new(true, "Restored 12 changes.");
 
@@ -40,4 +45,20 @@ internal sealed class FakeOptimizeService : IOptimizeService
     }
 
     public bool ReadGamingIsActive() => GamingActive;
+
+    public bool ReadCoreCageEnabled() => CoreCageEnabledValue;
+
+    public void WriteCoreCageEnabled(bool enabled)
+    {
+        CoreCageEnabledWrites++;
+        CoreCageEnabledValue = enabled;
+    }
+
+    public int ReadCoreCageReservedCores() => CoreCageReservedCoresValue;
+
+    public void WriteCoreCageReservedCores(int reservedCores)
+    {
+        CoreCageReservedCoresWrites++;
+        CoreCageReservedCoresValue = reservedCores;
+    }
 }

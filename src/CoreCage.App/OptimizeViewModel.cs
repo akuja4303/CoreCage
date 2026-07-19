@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using CoreCage.App.Services;
 
@@ -25,6 +27,11 @@ public sealed class OptimizeViewModel : INotifyPropertyChanged
         GamingCommand = new RelayCommand(ApplyGamingAsync, CanRun);
         RestoreCommand = new RelayCommand(RestoreAsync, CanRun);
         RefreshGamingIsActive();
+
+        LogicalCoreCount = Math.Max(_svc.LogicalCoreCount, 1);
+        AvailableReservedCoreCounts = BuildAvailableReservedCoreCounts(LogicalCoreCount);
+        _coreCageEnabled = _svc.ReadCoreCageEnabled();
+        _coreCageReservedCores = ClampReservedCores(_svc.ReadCoreCageReservedCores());
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -36,8 +43,19 @@ public sealed class OptimizeViewModel : INotifyPropertyChanged
     public bool IsBusy
     {
         get => _isBusy;
-        private set { if (Set(ref _isBusy, value)) RaiseCanExecuteChanged(); }
+        private set
+        {
+            if (Set(ref _isBusy, value))
+            {
+                RaiseCanExecuteChanged();
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanEditCoreCageSettings)));
+            }
+        }
     }
+
+    /// <summary>Whether the Core Cage toggle/picker should accept input right now. Rides the same
+    /// busy-state pattern as the Gaming/Restore buttons — disabled while a mode action is in flight.</summary>
+    public bool CanEditCoreCageSettings => !IsBusy;
 
     private string _statusMessage = "Pick a mode.";
     public string StatusMessage { get => _statusMessage; private set => Set(ref _statusMessage, value); }
@@ -63,6 +81,55 @@ public sealed class OptimizeViewModel : INotifyPropertyChanged
 
     /// <summary>Display string for <see cref="GamingIsActive"/> — what the Optimize page shows.</summary>
     public string GamingStatusText => GamingIsActive ? "ACTIVE" : "inactive";
+
+    /// <summary>How many logical cores this machine has — bounds <see cref="AvailableReservedCoreCounts"/>.</summary>
+    public int LogicalCoreCount { get; }
+
+    /// <summary>Valid values for the reserved-cores picker: 1 .. LogicalCoreCount-1, so at least one
+    /// core is always left over for the cage (enforced here, not just clamped on write).</summary>
+    public IReadOnlyList<int> AvailableReservedCoreCounts { get; }
+
+    private bool _coreCageEnabled;
+    /// <summary>Core Cage on/off — reserve top cores for the game, confine background processes to the
+    /// rest. Persisted through <see cref="IOptimizeService"/> (FeatureFlags.CoreCageEnabled) on change.</summary>
+    public bool CoreCageEnabled
+    {
+        get => _coreCageEnabled;
+        set
+        {
+            if (Set(ref _coreCageEnabled, value))
+                _svc.WriteCoreCageEnabled(value);
+        }
+    }
+
+    private int _coreCageReservedCores;
+    /// <summary>How many logical cores Core Cage reserves for the game. Clamped to
+    /// [1, LogicalCoreCount-1] so the cage always has at least one core to confine background processes
+    /// to. Persisted through <see cref="IOptimizeService"/> (FeatureFlags.CoreCageReservedCores) on change.</summary>
+    public int CoreCageReservedCores
+    {
+        get => _coreCageReservedCores;
+        set
+        {
+            int clamped = ClampReservedCores(value);
+            if (Set(ref _coreCageReservedCores, clamped))
+                _svc.WriteCoreCageReservedCores(clamped);
+        }
+    }
+
+    private int ClampReservedCores(int value)
+    {
+        int max = System.Math.Max(LogicalCoreCount - 1, 1);
+        if (value < 1) return 1;
+        if (value > max) return max;
+        return value;
+    }
+
+    private static IReadOnlyList<int> BuildAvailableReservedCoreCounts(int logicalCoreCount)
+    {
+        int max = System.Math.Max(logicalCoreCount - 1, 1);
+        return Enumerable.Range(1, max).ToList();
+    }
 
     private bool CanRun() => !IsBusy;
 

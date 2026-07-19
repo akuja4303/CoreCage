@@ -61,6 +61,23 @@ namespace CoreCage.Core
         /// <summary>Release the guard once CPU temp falls to/below this (°C). Hysteresis vs High.</summary>
         public double ThermalGuardReleaseC { get; set; } = 80;
 
+        // ── Core Cage → ON by default (safe: user-mode affinity only, EAC-safe) ──
+        /// <summary>The flagship feature: in Gaming Mode, reserve the top <see cref="CoreCageReservedCores"/>
+        /// logical cores for the game and confine background processes onto the leftover (bottom) cores —
+        /// the technique measured 77→~150fps in Arc Raiders. Pure planner (<c>CoreCageService.BuildPlan</c>)
+        /// + a thin per-pid <c>ProcessorAffinity</c> applier; EAC-safe (user-mode APIs only, no kernel
+        /// calls). Safe + reversible → ON by default.</summary>
+        public bool CoreCageEnabled { get; set; } = true;
+
+        /// <summary>How many logical cores to reserve for the game (the TOP cores; everything else is
+        /// caged). Defaults to half the machine's logical core count, floored at 2 so a fresh install
+        /// always leaves the game a meaningful reservation. <c>CoreCageService.BuildPlan</c> still
+        /// refuses to cage anything on a ≤2-core machine regardless of this value.</summary>
+        public int CoreCageReservedCores { get; set; } = DefaultCoreCageReservedCores();
+
+        private static int DefaultCoreCageReservedCores() =>
+            Math.Max(Environment.ProcessorCount / 2, 2);
+
         // ── persistence ──────────────────────────────────────────────────────────
         private static FeatureFlags? _current;
         public static FeatureFlags Current => _current ??= Load();

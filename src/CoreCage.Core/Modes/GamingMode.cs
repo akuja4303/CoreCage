@@ -1,18 +1,22 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using CoreCage.Core.Caging;
 
 namespace CoreCage.Core.Modes
 {
     /// <summary>
     /// Built-in "Gaming" IModeModule. Wraps the existing engine pipeline -- Gaming Mode++ (MSI/NIC/
-    /// GameDVR/UWP/QoS), EAC-safe IFEO+powercfg+FSO polish for the user's gaming process list, and
-    /// CoreUnpark (core-unpark + perf floor) -- behind the uniform Apply/Revert seam.
+    /// GameDVR/UWP/QoS), EAC-safe IFEO+powercfg+FSO polish for the user's gaming process list,
+    /// CoreUnpark (core-unpark + perf floor), and Core Cage (reserve top cores for the game, confine
+    /// background processes to the rest -- behind <c>FeatureFlags.CoreCageEnabled</c>) -- behind the
+    /// uniform Apply/Revert seam.
     ///
     /// Apply runs the pipeline on a background thread and reports each step via IProgress&lt;string&gt;.
-    /// Revert reverses the same three layers in the opposite order; if any revert step throws, it falls
+    /// Revert reverses the same layers in the opposite order; if any revert step throws, it falls
     /// back to RestoreEverything.RestoreAll() (the Big Red Button) so a partial revert can never leave
     /// the rig half-tweaked.
     ///
@@ -41,6 +45,13 @@ namespace CoreCage.Core.Modes
         private readonly Func<bool> _restoreCoreUnpark;
         private readonly Func<RestoreSummary> _restoreEverything;
         private readonly Func<IEnumerable<string>> _gamingProcessList;
+        private readonly Func<int> _applyCoreCage;
+        private readonly Func<int> _releaseCoreCage;
+
+        // The plan Core Cage last applied, so Revert releases exactly what Apply caged. In-memory only
+        // (mirrors the other steps' "not persisted, Task 11 verifies live" posture) -- a crash between
+        // Apply and Revert is the same class of gap RestoreEverything (Big Red Button) exists to catch.
+        private CagePlan? _lastCagePlan;
 
         public GamingMode(string? statePath = null)
         {
@@ -54,6 +65,8 @@ namespace CoreCage.Core.Modes
             _restoreCoreUnpark = CoreUnpark.RestoreAll;
             _restoreEverything = RestoreEverything.RestoreAll;
             _gamingProcessList = () => UserProcessLists.GetList("gaming");
+            _applyCoreCage = ApplyCoreCageReal;
+            _releaseCoreCage = ReleaseCoreCageReal;
         }
 
         public bool IsActive => LoadState().IsActive;
@@ -77,9 +90,18 @@ namespace CoreCage.Core.Modes
                     _applyCoreUnpark();
                     steps.Add("Core-unpark applied");
 
+                    int caged = 0;
+                    if (FeatureFlags.Current.CoreCageEnabled)
+                    {
+                        progress?.Report("Core Cage: reserving cores for the game...");
+                        caged = _applyCoreCage();
+                        steps.Add($"Core Cage applied (caged {caged} process(es))");
+                    }
+
                     SaveState(true);
                     progress?.Report("Gaming Mode applied.");
-                    return new ModeResult(true, "Gaming Mode applied", steps);
+                    string cageNote = FeatureFlags.Current.CoreCageEnabled ? $" -- caged {caged} process(es)" : "";
+                    return new ModeResult(true, "Gaming Mode applied" + cageNote, steps);
                 }
                 catch (Exception ex)
                 {
@@ -97,6 +119,14 @@ namespace CoreCage.Core.Modes
                 var steps = new List<string>();
                 try
                 {
+                    int released = 0;
+                    if (FeatureFlags.Current.CoreCageEnabled)
+                    {
+                        progress?.Report("Core Cage: releasing cores...");
+                        released = _releaseCoreCage();
+                        steps.Add($"Core Cage released ({released} process(es))");
+                    }
+
                     progress?.Report("EAC-safe polish reverting...");
                     int restored = _restorePolish(_gamingProcessList());
                     steps.Add($"EAC-safe polish restored ({restored} process(es))");
@@ -111,7 +141,8 @@ namespace CoreCage.Core.Modes
 
                     SaveState(false);
                     progress?.Report("Gaming Mode reverted.");
-                    return new ModeResult(true, "Gaming Mode reverted", steps);
+                    string cageNote = FeatureFlags.Current.CoreCageEnabled ? $" -- released {released} process(es)" : "";
+                    return new ModeResult(true, "Gaming Mode reverted" + cageNote, steps);
                 }
                 catch (Exception ex)
                 {
@@ -134,6 +165,60 @@ namespace CoreCage.Core.Modes
                     }
                 }
             });
+        }
+
+        // ------------------------------------------------------------------
+        // Core Cage real apply/release -- gathers live process state, delegates the actual decision to
+        // CoreCageService.BuildPlan (pure, unit-tested), then applies/releases through it. Never invoked
+        // by any unit test (mutates real process affinity); Task 11 verifies it live.
+        // ------------------------------------------------------------------
+        private int ApplyCoreCageReal()
+        {
+            int totalCores = Environment.ProcessorCount;
+            int reserved = FeatureFlags.Current.CoreCageReservedCores;
+            // Clamp defensively so a stale/bad setting can never throw mid Gaming-Mode apply -- always
+            // leave at least one core for the cage.
+            if (reserved < 1) reserved = 1;
+            if (reserved >= totalCores) reserved = Math.Max(totalCores - 1, 1);
+
+            var whitelist = BuildCoreCageWhitelist();
+            var processes = new List<(int Pid, string Name)>();
+            int selfPid = Process.GetCurrentProcess().Id;
+            foreach (var p in Process.GetProcesses())
+            {
+                try
+                {
+                    if (p.Id != selfPid && !ProcessWatcher.IsProtectedSystemProcess(p.ProcessName))
+                        processes.Add((p.Id, p.ProcessName));
+                }
+                catch { /* exited/inaccessible -- skip */ }
+                finally { p.Dispose(); }
+            }
+
+            CagePlan plan = CoreCageService.BuildPlan(totalCores, reserved, processes, whitelist);
+            _lastCagePlan = plan;
+            return CoreCageService.Apply(plan);
+        }
+
+        private int ReleaseCoreCageReal()
+        {
+            if (_lastCagePlan == null) return 0;
+            int released = CoreCageService.Release(_lastCagePlan);
+            _lastCagePlan = null;
+            return released;
+        }
+
+        /// <summary>Names Core Cage must never confine: the user's own gaming process list (reuses
+        /// UserProcessLists rather than inventing a second whitelist) plus "audiodg" (Windows audio
+        /// engine -- always protected). System/anti-cheat processes are excluded further upstream via
+        /// <c>ProcessWatcher.IsProtectedSystemProcess</c> before the process list even reaches
+        /// <c>BuildPlan</c>.</summary>
+        private static ISet<string> BuildCoreCageWhitelist()
+        {
+            var whitelist = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "audiodg" };
+            foreach (var name in UserProcessLists.GetList("gaming"))
+                whitelist.Add(UserProcessLists.Normalize(name));
+            return whitelist;
         }
 
         // ------------------------------------------------------------------

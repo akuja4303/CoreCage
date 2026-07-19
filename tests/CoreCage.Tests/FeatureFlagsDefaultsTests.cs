@@ -1,3 +1,4 @@
+using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using CoreCage.Core;
 
@@ -36,6 +37,17 @@ namespace CoreCage.Tests
             var f = new FeatureFlags();
             Assert.IsTrue(f.MeasuredTimerResolution, "Measured timer resolution is safe + reversible → stays ON.");
             Assert.IsTrue(f.AutoApplyGameProfiles, "Auto game-profile apply is safe (no-op until profiles exist) → stays ON.");
+        }
+
+        [TestMethod]
+        public void CoreCage_DefaultsOn_WithHalfCoresReservedFloorTwo()
+        {
+            var f = new FeatureFlags();
+            Assert.IsTrue(f.CoreCageEnabled, "Core Cage is safe + reversible (user-mode affinity only, EAC-safe) → stays ON by default.");
+
+            int expectedReserved = Math.Max(Environment.ProcessorCount / 2, 2);
+            Assert.AreEqual(expectedReserved, f.CoreCageReservedCores, "default reservation is half the machine's logical cores, floored at 2.");
+            Assert.IsTrue(f.CoreCageReservedCores >= 2, "reservation must never default below the floor of 2.");
         }
     }
 }

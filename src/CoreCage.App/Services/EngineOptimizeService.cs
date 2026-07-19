@@ -1,3 +1,4 @@
+using CoreCage.Core;
 using CoreCage.Core.Modes;
 
 namespace CoreCage.App.Services;
@@ -18,6 +19,24 @@ public sealed class EngineOptimizeService : IOptimizeService
         RunGamingModeAsync(m => m.RevertAsync(progress), "Restore");
 
     public bool ReadGamingIsActive() => ModeRegistry.Get("Gaming")?.IsActive ?? false;
+
+    public int LogicalCoreCount => Environment.ProcessorCount;
+
+    public bool ReadCoreCageEnabled() => FeatureFlags.Current.CoreCageEnabled;
+
+    public void WriteCoreCageEnabled(bool enabled)
+    {
+        FeatureFlags.Current.CoreCageEnabled = enabled;
+        FeatureFlags.Current.Save();
+    }
+
+    public int ReadCoreCageReservedCores() => FeatureFlags.Current.CoreCageReservedCores;
+
+    public void WriteCoreCageReservedCores(int reservedCores)
+    {
+        FeatureFlags.Current.CoreCageReservedCores = reservedCores;
+        FeatureFlags.Current.Save();
+    }
 
     private static async Task<OptimizeResult> RunGamingModeAsync(Func<IModeModule, Task<ModeResult>> op, string label)
     {

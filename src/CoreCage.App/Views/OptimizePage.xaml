@@ -7,6 +7,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -33,8 +34,28 @@
             <Run Text="{Binding GamingStatusText, Mode=OneWay}" />
         </TextBlock>
 
+        <!-- Core Cage: reserve top cores for the game, cage background processes onto the rest. -->
+        <Border Grid.Row="4" Background="{StaticResource Panel}" CornerRadius="10" Padding="18,14" Margin="0,0,0,22">
+            <StackPanel Orientation="Horizontal">
+                <CheckBox Content="Core Cage" VerticalAlignment="Center" FontSize="15"
+                          Foreground="{StaticResource TextHi}"
+                          IsChecked="{Binding CoreCageEnabled}"
+                          IsEnabled="{Binding CanEditCoreCageSettings}"
+                          AutomationProperties.Name="Core Cage enabled"
+                          AutomationProperties.HelpText="Reserve top cores for the game and confine background processes to the rest" />
+                <TextBlock Text="Reserve cores:" VerticalAlignment="Center" Margin="20,0,10,0" FontSize="14"
+                           Foreground="{StaticResource TextLo}" />
+                <ComboBox Width="70" VerticalAlignment="Center"
+                          ItemsSource="{Binding AvailableReservedCoreCounts}"
+                          SelectedItem="{Binding CoreCageReservedCores}"
+                          IsEnabled="{Binding CanEditCoreCageSettings}"
+                          AutomationProperties.Name="Core Cage reserved core count"
+                          AutomationProperties.HelpText="How many logical cores to reserve for the game" />
+            </StackPanel>
+        </Border>
+
         <!-- The two modes: Gaming, Restore. CoreCage.App is gaming-only; no other mode here. -->
-        <Grid Grid.Row="4" VerticalAlignment="Top">
+        <Grid Grid.Row="5" VerticalAlignment="Top">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="16" />
