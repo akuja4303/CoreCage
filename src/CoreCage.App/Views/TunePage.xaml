@@ -1,0 +1,132 @@
+<UserControl x:Class="CoreCage.App.Views.TunePage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Style x:Key="NumBox" TargetType="TextBox">
+            <Setter Property="Background" Value="#FF262A34" />
+            <Setter Property="Foreground" Value="{StaticResource TextHi}" />
+            <Setter Property="BorderBrush" Value="#FF3A3F4B" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="CaretBrush" Value="{StaticResource TextHi}" />
+        </Style>
+        <Style x:Key="ApplyBtn" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource TextHi}" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Margin" Value="10,0,0,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="B" Background="{StaticResource Accent}" CornerRadius="7"
+                                BorderThickness="2" BorderBrush="Transparent" Padding="16,8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Opacity" Value="0.88" /></Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="{StaticResource Focus}" /></Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="B" Property="Opacity" Value="0.35" /><Setter Property="Cursor" Value="Arrow" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="RowLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextHi}" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="32,28,32,28">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Text="Tune" Style="{StaticResource H1}" />
+            <TextBlock Grid.Row="1" Margin="0,4,0,18" Foreground="{StaticResource TextLo}" FontSize="15"
+                       Text="Live GPU controls, applied through the in-process engine. A silent no-op is reported honestly." />
+
+            <!-- Unavailable state -->
+            <Border Grid.Row="2" Background="#FF2A2A32" BorderBrush="#FF4A4A55" BorderThickness="1.5"
+                    CornerRadius="8" Padding="16,12" Margin="0,0,0,16"
+                    Visibility="{Binding GpuUnavailable, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource TextLo}" FontSize="15" TextWrapping="Wrap" />
+            </Border>
+
+            <!-- Live readout -->
+            <UniformGrid Grid.Row="3" Columns="4" Margin="0,0,0,20">
+                <Border Background="{StaticResource Panel}" CornerRadius="12" Padding="18" Margin="0,0,8,0">
+                    <StackPanel><TextBlock Text="CORE CLOCK" Style="{StaticResource StatLabel}" /><TextBlock Text="{Binding CoreText}" Style="{StaticResource StatValue}" /></StackPanel>
+                </Border>
+                <Border Background="{StaticResource Panel}" CornerRadius="12" Padding="18" Margin="4,0,4,0">
+                    <StackPanel><TextBlock Text="MEM CLOCK" Style="{StaticResource StatLabel}" /><TextBlock Text="{Binding MemText}" Style="{StaticResource StatValue}" /></StackPanel>
+                </Border>
+                <Border Background="{StaticResource Panel}" CornerRadius="12" Padding="18" Margin="4,0,4,0">
+                    <StackPanel><TextBlock Text="POWER" Style="{StaticResource StatLabel}" /><TextBlock Text="{Binding PowerText}" Style="{StaticResource StatValue}" /></StackPanel>
+                </Border>
+                <Border Background="{StaticResource Panel}" CornerRadius="12" Padding="18" Margin="8,0,0,0">
+                    <StackPanel><TextBlock Text="TEMP" Style="{StaticResource StatLabel}" /><TextBlock Text="{Binding TempText}" Style="{StaticResource StatValue}" /></StackPanel>
+                </Border>
+            </UniformGrid>
+
+            <!-- Controls -->
+            <StackPanel Grid.Row="4" IsEnabled="{Binding GpuAvailable}">
+                <!-- Power limit -->
+                <Grid Margin="0,0,0,14">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="150" /><ColumnDefinition Width="*" /><ColumnDefinition Width="110" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Power limit (W)" Style="{StaticResource RowLabel}" />
+                    <TextBlock Grid.Column="1" Text="{Binding PowerLimitText}" Foreground="{StaticResource TextLo}" FontSize="15" VerticalAlignment="Center" />
+                    <TextBox   Grid.Column="2" Style="{StaticResource NumBox}" AutomationProperties.Name="Power limit watts"
+                               Text="{Binding PowerLimitInput, UpdateSourceTrigger=PropertyChanged}" />
+                    <Button    Grid.Column="3" Content="Apply" Style="{StaticResource ApplyBtn}"
+                               Command="{Binding PowerLimitCommand}" AutomationProperties.Name="Apply power limit" />
+                </Grid>
+                <!-- Core offset -->
+                <Grid Margin="0,0,0,14">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="150" /><ColumnDefinition Width="*" /><ColumnDefinition Width="110" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Core offset (MHz)" Style="{StaticResource RowLabel}" />
+                    <TextBlock Grid.Column="1" Text="{Binding CoreOffsetText}" Foreground="{StaticResource TextLo}" FontSize="15" VerticalAlignment="Center" />
+                    <TextBox   Grid.Column="2" Style="{StaticResource NumBox}" AutomationProperties.Name="Core clock offset MHz"
+                               Text="{Binding CoreOffsetInput, UpdateSourceTrigger=PropertyChanged}" />
+                    <Button    Grid.Column="3" Content="Apply" Style="{StaticResource ApplyBtn}"
+                               Command="{Binding CoreOffsetCommand}" AutomationProperties.Name="Apply core offset" />
+                </Grid>
+                <!-- Vibrance -->
+                <Grid Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="150" /><ColumnDefinition Width="*" /><ColumnDefinition Width="110" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Digital vibrance" Style="{StaticResource RowLabel}" />
+                    <TextBlock Grid.Column="1" Text="{Binding VibranceText}" Foreground="{StaticResource TextLo}" FontSize="15" VerticalAlignment="Center" />
+                    <TextBox   Grid.Column="2" Style="{StaticResource NumBox}" AutomationProperties.Name="Vibrance level 0 to 63"
+                               Text="{Binding VibranceInput, UpdateSourceTrigger=PropertyChanged}" />
+                    <Button    Grid.Column="3" Content="Apply" Style="{StaticResource ApplyBtn}"
+                               Command="{Binding VibranceCommand}" AutomationProperties.Name="Apply vibrance" />
+                </Grid>
+            </StackPanel>
+
+            <!-- CPU undervolt: honest unavailable note -->
+            <Border Grid.Row="5" Background="{StaticResource Panel}" CornerRadius="10" Padding="16,12" Margin="0,20,0,0">
+                <StackPanel>
+                    <TextBlock Text="CPU undervolt (Curve Optimizer)" Foreground="{StaticResource TextHi}" FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextLo}" FontSize="14" TextWrapping="Wrap"
+                               Text="Pending: the ryzen-smu driver isn't loading on this system (StartService 0x800705AA). Wired but held until the driver issue is resolved — no fake control shipped." />
+                </StackPanel>
+            </Border>
+
+            <!-- Status / feedback -->
+            <Border Grid.Row="6" Background="#22FFFFFF" CornerRadius="8" Padding="14,10" Margin="0,18,0,0">
+                <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource TextHi}" FontSize="15" TextWrapping="Wrap" />
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

@@ -1,9 +1,114 @@
-﻿<Application x:Class="CoreCage.App.App"
+<Application x:Class="CoreCage.App.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:CoreCage.App"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-         
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <!-- Palette (dark, WCAG-AA text on panels) -->
+        <SolidColorBrush x:Key="Bg"      Color="#FF14161C" />
+        <SolidColorBrush x:Key="Panel"   Color="#FF1D2029" />
+        <SolidColorBrush x:Key="Rail"    Color="#FF0F111A" />
+        <SolidColorBrush x:Key="TextHi"  Color="#FFF5F6FA" />
+        <SolidColorBrush x:Key="TextLo"  Color="#FFA7ADBB" />
+        <SolidColorBrush x:Key="Focus"   Color="#FFFFD54A" />
+        <SolidColorBrush x:Key="Accent"  Color="#FF3B82F6" />
+        <SolidColorBrush x:Key="Good"    Color="#FF3FB27F" />
+        <SolidColorBrush x:Key="Bad"     Color="#FFF08A8A" />
+
+        <!-- Type scale -->
+        <Style x:Key="H1" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextHi}" />
+            <Setter Property="FontSize" Value="26" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+        <Style x:Key="StatLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextLo}" />
+            <Setter Property="FontSize" Value="14" />
+        </Style>
+        <Style x:Key="StatValue" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextHi}" />
+            <Setter Property="FontSize" Value="22" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <!-- Big, high-contrast, keyboard-focus-visible action button. -->
+        <Style x:Key="BigActionButton" TargetType="Button">
+            <Setter Property="Height" Value="88" />
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextHi}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="10"
+                                BorderThickness="3"
+                                BorderBrush="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Opacity" Value="0.88" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bg" Property="Opacity" Value="0.72" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bg" Property="BorderBrush" Value="{StaticResource Focus}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bg" Property="Opacity" Value="0.35" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Left-rail navigation item: selected accent bar, hover, keyboard focus ring. -->
+        <Style x:Key="NavItem" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{StaticResource TextLo}" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Row" Background="Transparent" CornerRadius="8" Margin="8,2" Padding="12,10">
+                            <Border.BorderBrush>Transparent</Border.BorderBrush>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Rectangle x:Name="Bar" Grid.Column="0" Width="3" Height="20" RadiusX="2" RadiusY="2"
+                                           Fill="{StaticResource Accent}" Opacity="0" Margin="0,0,10,0" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Glyph}" FontSize="16" Margin="0,0,10,0" />
+                                    <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Row" Property="Background" Value="#22FFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Row" Property="Background" Value="#2E3B82F6" />
+                                <Setter TargetName="Bar" Property="Opacity" Value="1" />
+                                <Setter Property="Foreground" Value="{StaticResource TextHi}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Row" Property="BorderBrush" Value="{StaticResource Focus}" />
+                                <Setter TargetName="Row" Property="BorderThickness" Value="2" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Application.Resources>
 </Application>

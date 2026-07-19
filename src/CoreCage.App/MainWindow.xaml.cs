@@ -1,23 +1,24 @@
-﻿using System.Text;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 
 namespace CoreCage.App;
 
-/// <summary>
-/// Interaction logic for MainWindow.xaml
-/// </summary>
 public partial class MainWindow : Window
 {
+    private readonly ShellViewModel _shell;
+
     public MainWindow()
     {
         InitializeComponent();
+        _shell = new ShellViewModel();
+        DataContext = _shell;
+        Closed += (_, _) => _shell.Dispose();
+
+        // Land centered on the PRIMARY monitor (WPF's CenterScreen otherwise lands on whichever
+        // screen Windows last used — it opened on the vertical side monitor). Position after layout.
+        Loaded += (_, _) =>
+        {
+            Left = (SystemParameters.PrimaryScreenWidth  - ActualWidth)  / 2;
+            Top  = (SystemParameters.PrimaryScreenHeight - ActualHeight) / 2;
+        };
     }
 }
