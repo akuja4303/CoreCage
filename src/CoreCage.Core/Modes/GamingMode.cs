@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using CoreCage.Core.Caging;
@@ -69,6 +70,39 @@ namespace CoreCage.Core.Modes
             _releaseCoreCage = ReleaseCoreCageReal;
         }
 
+        /// <summary>
+        /// Test-only seam (review follow-up, MINOR-1/IMPORTANT-1): lets the test project swap every
+        /// Revert-side delegate for an in-memory fake, so RevertAsync's own sequencing/decision logic
+        /// (e.g. "release whenever a cage plan exists, regardless of the current flag") can be driven
+        /// end-to-end without ever touching the real OS. Apply-side delegates keep their real
+        /// implementations since no test needs to fake Apply.
+        /// </summary>
+        internal GamingMode(
+            string? statePath,
+            Func<int> releaseCoreCage,
+            Func<IEnumerable<string>, int> restorePolish,
+            Action restoreGamingModePlusPlus,
+            Func<bool> restoreCoreUnpark,
+            Func<IEnumerable<string>> gamingProcessList,
+            Func<RestoreSummary> restoreEverything)
+            : this(statePath)
+        {
+            _releaseCoreCage = releaseCoreCage;
+            _restorePolish = restorePolish;
+            _restoreGamingModePlusPlus = restoreGamingModePlusPlus;
+            _restoreCoreUnpark = restoreCoreUnpark;
+            _gamingProcessList = gamingProcessList;
+            _restoreEverything = restoreEverything;
+        }
+
+        /// <summary>Test-only seam: lets a test simulate "Apply already ran and cached a plan" without
+        /// invoking the real, OS-mutating ApplyCoreCageReal.</summary>
+        internal CagePlan? LastCagePlanForTests
+        {
+            get => _lastCagePlan;
+            set => _lastCagePlan = value;
+        }
+
         public bool IsActive => LoadState().IsActive;
 
         public Task<ModeResult> ApplyAsync(IProgress<string>? progress = null)
@@ -120,7 +154,13 @@ namespace CoreCage.Core.Modes
                 try
                 {
                     int released = 0;
-                    if (FeatureFlags.Current.CoreCageEnabled)
+                    // Release is gated on "did Apply actually cage something" (_lastCagePlan != null),
+                    // NOT on the CURRENT FeatureFlags.CoreCageEnabled value. Release is idempotent and
+                    // always-safe; gating it on the current flag meant flipping Core Cage off after
+                    // Apply left everything permanently pinned to the caged mask (review IMPORTANT-1).
+                    // Capture the decision before releasing -- ReleaseCoreCageReal nulls _lastCagePlan.
+                    bool hadCagePlan = _lastCagePlan != null;
+                    if (hadCagePlan)
                     {
                         progress?.Report("Core Cage: releasing cores...");
                         released = _releaseCoreCage();
@@ -141,7 +181,7 @@ namespace CoreCage.Core.Modes
 
                     SaveState(false);
                     progress?.Report("Gaming Mode reverted.");
-                    string cageNote = FeatureFlags.Current.CoreCageEnabled ? $" -- released {released} process(es)" : "";
+                    string cageNote = hadCagePlan ? $" -- released {released} process(es)" : "";
                     return new ModeResult(true, "Gaming Mode reverted" + cageNote, steps);
                 }
                 catch (Exception ex)
@@ -172,9 +212,22 @@ namespace CoreCage.Core.Modes
         // CoreCageService.BuildPlan (pure, unit-tested), then applies/releases through it. Never invoked
         // by any unit test (mutates real process affinity); Task 11 verifies it live.
         // ------------------------------------------------------------------
+        /// <summary>Pure guard (review MINOR-2): true when the machine has too few logical cores for
+        /// Core Cage to do anything meaningful with. Below this, FeatureFlags' own defensive clamp on
+        /// CoreCageReservedCores can bottom out at reservedForGame == totalCores (e.g. a 1-core box),
+        /// which would make CoreCageService.BuildPlan throw ArgumentOutOfRangeException and fail the
+        /// whole Gaming Mode apply. Checked BEFORE any process enumeration or BuildPlan call.</summary>
+        internal static bool ShouldSkipCoreCage(int totalCores) => totalCores <= 2;
+
         private int ApplyCoreCageReal()
         {
             int totalCores = Environment.ProcessorCount;
+            if (ShouldSkipCoreCage(totalCores))
+            {
+                Logger.Log($"GamingMode: skipping Core Cage -- only {totalCores} logical core(s) (<=2), nowhere meaningful to cage to.");
+                return 0;
+            }
+
             int reserved = FeatureFlags.Current.CoreCageReservedCores;
             // Clamp defensively so a stale/bad setting can never throw mid Gaming-Mode apply -- always
             // leave at least one core for the cage.
@@ -209,17 +262,78 @@ namespace CoreCage.Core.Modes
         }
 
         /// <summary>Names Core Cage must never confine: the user's own gaming process list (reuses
-        /// UserProcessLists rather than inventing a second whitelist) plus "audiodg" (Windows audio
-        /// engine -- always protected). System/anti-cheat processes are excluded further upstream via
-        /// <c>ProcessWatcher.IsProtectedSystemProcess</c> before the process list even reaches
-        /// <c>BuildPlan</c>.</summary>
+        /// UserProcessLists rather than inventing a second whitelist), "audiodg" (Windows audio engine --
+        /// always protected), the foreground process at cage time, and anything ProcessWatcher's own
+        /// classifier currently calls a game (review IMPORTANT-3 -- a game the user never added to their
+        /// gaming list was getting caged along with everything else). System/anti-cheat processes are
+        /// excluded further upstream via <c>ProcessWatcher.IsProtectedSystemProcess</c> before the
+        /// process list even reaches <c>BuildPlan</c>.</summary>
         private static ISet<string> BuildCoreCageWhitelist()
         {
+            string? foregroundProcessName = GetForegroundProcessName();
+
+            var runningGameNames = new List<string>();
+            foreach (var proc in ProcessWatcher.GetRunningGameProcesses())
+            {
+                try { runningGameNames.Add(proc.ProcessName); }
+                catch { /* exited mid-enumeration -- skip */ }
+                finally { proc.Dispose(); }
+            }
+
+            return BuildWhitelistSet(UserProcessLists.GetList("gaming"), foregroundProcessName, runningGameNames);
+        }
+
+        /// <summary>Pure whitelist-set builder (review IMPORTANT-3): given the user's gaming list, the
+        /// foreground process name at cage time (or null), and the names ProcessWatcher currently
+        /// classifies as running games, builds the set Core Cage must never confine. No Process/OS
+        /// dependency -- unit-tested directly. <see cref="BuildCoreCageWhitelist"/> is the impure
+        /// gatherer of these three inputs.</summary>
+        internal static ISet<string> BuildWhitelistSet(
+            IEnumerable<string>? gamingList,
+            string? foregroundProcessName,
+            IEnumerable<string>? runningGameProcessNames)
+        {
             var whitelist = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "audiodg" };
-            foreach (var name in UserProcessLists.GetList("gaming"))
+
+            foreach (var name in gamingList ?? Array.Empty<string>())
                 whitelist.Add(UserProcessLists.Normalize(name));
+
+            if (!string.IsNullOrEmpty(foregroundProcessName))
+                whitelist.Add(UserProcessLists.Normalize(foregroundProcessName));
+
+            foreach (var name in runningGameProcessNames ?? Array.Empty<string>())
+                whitelist.Add(UserProcessLists.Normalize(name));
+
             return whitelist;
         }
+
+        /// <summary>The process name of whatever window is in the foreground right now, or null if it
+        /// can't be resolved. User-mode user32 APIs only (GetForegroundWindow / GetWindowThreadProcessId)
+        /// -- same EAC-safe pattern already used by SignalCollector/ForegroundWatcher elsewhere in this
+        /// codebase. Best-effort: any failure (no foreground window, process exited) degrades to null
+        /// rather than throwing, so it can never abort a Gaming Mode apply.</summary>
+        private static string? GetForegroundProcessName()
+        {
+            try
+            {
+                IntPtr hwnd = GetForegroundWindow();
+                if (hwnd == IntPtr.Zero) return null;
+                GetWindowThreadProcessId(hwnd, out uint pid);
+                if (pid == 0) return null;
+                using Process p = Process.GetProcessById((int)pid);
+                return p.ProcessName;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
         // ------------------------------------------------------------------
         // Persisted IsActive flag -- crash-detectable at next launch.
@@ -243,7 +357,10 @@ namespace CoreCage.Core.Modes
             }
         }
 
-        private void SaveState(bool isActive)
+        /// <summary>internal (not private) so tests can drive the exact save path GamingMode's own
+        /// ApplyAsync/RevertAsync use (review MINOR-1 -- a true round-trip through this method, instead
+        /// of hand-writing the JSON) without invoking the real, OS-mutating pipeline.</summary>
+        internal void SaveState(bool isActive)
         {
             try
             {

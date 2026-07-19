@@ -103,6 +103,18 @@ namespace CoreCage.Core
                 summary.ProcessPrioritiesReset = reset;
             });
 
+            // 5b. Process affinities back to full-mask for everything that's still running (review
+            //     IMPORTANT-2 -- Core Cage confines background processes to a caged-core mask; a crash
+            //     mid-cage loses the in-memory CagePlan, so this Big-Red-Button pass is the only thing
+            //     short of reboot that can un-pin them). Mirrors ResetAllProcessPriorities' exact
+            //     exclusion logic: no named skip-list, just a per-process try/catch that silently skips
+            //     anything protected/inaccessible.
+            TryRun("Process affinities -> full mask", () =>
+            {
+                int reset = ResetAllProcessAffinities();
+                summary.ProcessAffinitiesReset = reset;
+            });
+
             // 6. Timer resolution back to default
             TryRun("Timer resolution -> default", () =>
             {
@@ -272,6 +284,38 @@ namespace CoreCage.Core
             return n;
         }
 
+        /// <summary>Pure full-core affinity mask for a machine with this many logical cores, as a bare
+        /// long (e.g. 4 cores -&gt; 0b1111). No Process/OS dependency -- extracted so the mask math is
+        /// unit-testable without mutating any real process's affinity.</summary>
+        internal static long FullAffinityMask(int processorCount) => (1L << processorCount) - 1;
+
+        /// <summary>Sets ProcessorAffinity back to the full-core mask for every process still running.
+        /// Same per-process try/catch skip-on-denied pattern as <see cref="ResetAllProcessPriorities"/> --
+        /// no named exclusion list, a protected/system process just throws and is skipped. Returns the
+        /// count actually changed. Never throws.</summary>
+        private static int ResetAllProcessAffinities()
+        {
+            int n = 0;
+            try
+            {
+                var fullMask = (IntPtr)FullAffinityMask(Environment.ProcessorCount);
+                foreach (var p in Process.GetProcesses())
+                {
+                    try
+                    {
+                        if (p.ProcessorAffinity != fullMask)
+                        {
+                            p.ProcessorAffinity = fullMask;
+                            n++;
+                        }
+                    }
+                    catch { /* protected process, skip */ }
+                }
+            }
+            catch { }
+            return n;
+        }
+
         // Restores every "rigopt-*" snapshot (notably the snapshot-before-write capture of the user's
         // TRUE original registry values — RegistryTweakManifest.SnapshotLabel). Delegates to
         // RegistryBackup so it reads from the SAME directory Snapshot writes to. The previous local
@@ -292,6 +336,7 @@ namespace CoreCage.Core
         public bool PowerPlanReset;
         public bool NetworkReset;
         public int ProcessPrioritiesReset;
+        public int ProcessAffinitiesReset;
         public bool TimerResolutionReset;
         public bool AutoStartTasksRemoved;
         public int RegistrySnapshotsRestored;
@@ -308,6 +353,7 @@ namespace CoreCage.Core
                 $"power plan reset={PowerPlanReset}, " +
                 $"network reset={NetworkReset}, " +
                 $"priorities reset={ProcessPrioritiesReset}, " +
+                $"affinities reset={ProcessAffinitiesReset}, " +
                 $"timer reset={TimerResolutionReset}, " +
                 $"tasks removed={AutoStartTasksRemoved}, " +
                 $"snapshots restored={RegistrySnapshotsRestored}, " +
@@ -325,6 +371,7 @@ namespace CoreCage.Core
                 (PowerPlanReset ? 1 : 0) +
                 (NetworkReset ? 5 : 0) +
                 ProcessPrioritiesReset +
+                ProcessAffinitiesReset +
                 (TimerResolutionReset ? 1 : 0) +
                 (AutoStartTasksRemoved ? 3 : 0) +
                 RegistrySnapshotsRestored +

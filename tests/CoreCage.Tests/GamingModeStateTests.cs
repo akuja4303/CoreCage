@@ -34,9 +34,9 @@ namespace CoreCage.Tests
             var first = new GamingMode(_statePath);
             Assert.IsFalse(first.IsActive, "no state file yet -> defaults to inactive.");
 
-            // Fake an apply: write exactly what GamingMode's own SaveState(true) would persist, without
-            // ever invoking ApplyAsync (which would touch the real rig).
-            File.WriteAllText(_statePath, "{\"IsActive\": true}");
+            // True round-trip: drive GamingMode's OWN internal save path (SaveState) instead of
+            // hand-writing the JSON, without ever invoking ApplyAsync (which would touch the real rig).
+            first.SaveState(true);
 
             Assert.IsTrue(first.IsActive, "the same instance re-reads the file on every IsActive get.");
 
