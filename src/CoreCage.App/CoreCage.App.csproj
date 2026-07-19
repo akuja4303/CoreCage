@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\CoreCage.Core\CoreCage.Core.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>CoreCage.App</AssemblyName>
+    <RootNamespace>CoreCage.App</RootNamespace>
+    <UseWPF>true</UseWPF>
+    <!-- CoreCage.App authors only WPF. CoreCage.Core does not enable WinForms (kept false per
+         Task 1 scaffold rule); if a later task's copied engine code needs WinForms types inside
+         Core, that flows in transitively and App must NOT enable UseWindowsForms itself — doing so
+         would drag System.Windows.Forms/System.Drawing into scope and collide with WPF's
+         Application/Brush types. -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+</Project>
