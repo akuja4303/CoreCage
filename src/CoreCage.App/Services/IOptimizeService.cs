@@ -36,7 +36,40 @@ public interface IOptimizeService
 
     /// <summary>Persists the Core Cage reserved-core-count picker.</summary>
     void WriteCoreCageReservedCores(int reservedCores);
+
+    /// <summary>
+    /// Current Tweak Ledger rows -- "what's active + what it earned you". Backed by
+    /// <c>CoreCage.Core.Ledger.TweakLedger</c>, which does file I/O per read (same posture as
+    /// <see cref="ReadGamingIsActive"/>) -- callers read this once per refresh (after Apply/Restore/Prove
+    /// it completes), never on a polling/per-frame path.
+    /// </summary>
+    IReadOnlyList<LedgerRowInfo> ReadLedgerRows();
+
+    /// <summary>
+    /// Runs a real PresentMon-based before/after benchmark against the currently active tweaks (via
+    /// <c>CoreCage.Core.Benchmark.AbBenchRunner</c>) and, on success, updates the ledger's active rows
+    /// with the measured numbers. Never throws -- an honest failure (PresentMon.exe missing, no game
+    /// running, a failed capture) comes back as <c>Ok=false</c> with a message the UI can show verbatim,
+    /// including a download hint when PresentMon itself is the problem (it is not committed to the
+    /// repo -- the user/CI fetches it separately).
+    /// </summary>
+    Task<OptimizeResult> ProveItAsync(IProgress<string>? progress = null);
 }
 
 /// <summary>Outcome of an optimize action: did it apply, and a human-readable message for the UI.</summary>
 public sealed record OptimizeResult(bool Ok, string Message);
+
+/// <summary>
+/// One Tweak Ledger row for display: which tweak, whether it's currently active, and its measured
+/// before/after numbers (all null until a "Prove it" run fills them in -- the UI shows "not yet
+/// benchmarked" for that case). Mirrors <c>CoreCage.Core.Ledger.LedgerEntry</c> field-for-field so
+/// <see cref="EngineOptimizeService"/> can map it 1:1; kept as its own App-layer type so
+/// <see cref="OptimizeViewModel"/> never has to reference CoreCage.Core.Ledger directly.
+/// </summary>
+public sealed record LedgerRowInfo(
+    string TweakId,
+    bool Active,
+    double? BaselineFps,
+    double? BaselineOnePctLow,
+    double? AfterFps,
+    double? AfterOnePctLow);

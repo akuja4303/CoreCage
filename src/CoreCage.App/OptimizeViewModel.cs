@@ -1,10 +1,19 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using CoreCage.App.Services;
 
 namespace CoreCage.App;
+
+/// <summary>
+/// One Tweak Ledger row, display-ready for the Optimize page's Ledger card: a human tweak name,
+/// whether it's active, and either the measured delta ("FPS +12.3, 1% lows +8.1") or "not yet
+/// benchmarked" when no Prove It run has filled the numbers in yet.
+/// </summary>
+public sealed record LedgerRowViewModel(string DisplayName, bool Active, string DeltaText);
 
 /// <summary>
 /// Drives the Optimize group: Gaming / Restore. CoreCage.App is gaming-only — there is no second
@@ -26,7 +35,9 @@ public sealed class OptimizeViewModel : INotifyPropertyChanged
         _svc = svc;
         GamingCommand = new RelayCommand(ApplyGamingAsync, CanRun);
         RestoreCommand = new RelayCommand(RestoreAsync, CanRun);
+        ProveItCommand = new RelayCommand(ProveItAsync, CanRun);
         RefreshGamingIsActive();
+        RefreshLedgerRows();
 
         LogicalCoreCount = Math.Max(_svc.LogicalCoreCount, 1);
         AvailableReservedCoreCounts = BuildAvailableReservedCoreCounts(LogicalCoreCount);
@@ -38,6 +49,30 @@ public sealed class OptimizeViewModel : INotifyPropertyChanged
 
     public RelayCommand GamingCommand { get; }
     public RelayCommand RestoreCommand { get; }
+    /// <summary>Runs the A/B "prove it" benchmark (bench → re-apply → bench) against the currently
+    /// active tweaks and updates the Ledger card with the measured delta.</summary>
+    public RelayCommand ProveItCommand { get; }
+
+    /// <summary>Tweak Ledger rows for the Optimize page's Ledger card — refreshed after every
+    /// Apply/Restore/Prove-it completes (same "read once, not on a poll" posture as
+    /// <see cref="GamingIsActive"/>).</summary>
+    public ObservableCollection<LedgerRowViewModel> LedgerRows { get; } = new();
+
+    private bool _isLedgerEmpty = true;
+    /// <summary>True when no tweak has ever been applied — drives the "No tweaks applied yet — hit
+    /// Gaming Mode" empty state.</summary>
+    public bool IsLedgerEmpty
+    {
+        get => _isLedgerEmpty;
+        private set
+        {
+            if (Set(ref _isLedgerEmpty, value))
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasLedgerRows)));
+        }
+    }
+
+    /// <summary>Inverse of <see cref="IsLedgerEmpty"/>, for the Ledger card's row-list visibility.</summary>
+    public bool HasLedgerRows => !IsLedgerEmpty;
 
     private bool _isBusy;
     public bool IsBusy
@@ -135,6 +170,7 @@ public sealed class OptimizeViewModel : INotifyPropertyChanged
 
     internal Task ApplyGamingAsync() => RunAsync(p => _svc.ApplyGamingAsync(p), "Gaming Mode");
     internal Task RestoreAsync()     => RunAsync(p => _svc.RestoreAsync(p),     "Restore");
+    internal Task ProveItAsync()     => RunAsync(p => _svc.ProveItAsync(p),     "Prove it");
 
     private async Task RunAsync(Func<IProgress<string>?, Task<OptimizeResult>> action, string label)
     {
@@ -156,15 +192,47 @@ public sealed class OptimizeViewModel : INotifyPropertyChanged
         {
             IsBusy = false;
             RefreshGamingIsActive();
+            RefreshLedgerRows();
         }
     }
 
     private void RefreshGamingIsActive() => GamingIsActive = _svc.ReadGamingIsActive();
 
+    private void RefreshLedgerRows()
+    {
+        LedgerRows.Clear();
+        foreach (var row in _svc.ReadLedgerRows())
+            LedgerRows.Add(new LedgerRowViewModel(LedgerDisplayName(row.TweakId), row.Active, LedgerDeltaText(row)));
+        IsLedgerEmpty = LedgerRows.Count == 0;
+    }
+
+    /// <summary>Human name for a TweakId — pure, unit-testable without a service.</summary>
+    internal static string LedgerDisplayName(string tweakId) => tweakId switch
+    {
+        "gaming-pipeline" => "Gaming Mode++",
+        "eac-polish" => "EAC-safe polish",
+        "core-unpark" => "Core-unpark",
+        "core-cage" => "Core Cage",
+        _ => tweakId,
+    };
+
+    /// <summary>"not yet benchmarked" until a Prove It run fills in the after numbers; otherwise the
+    /// measured delta, e.g. "FPS +12.3, 1% lows +8.1". Pure — unit-testable without a service.</summary>
+    internal static string LedgerDeltaText(LedgerRowInfo row)
+    {
+        if (row.BaselineFps == null || row.AfterFps == null) return "not yet benchmarked";
+        double fpsDelta = row.AfterFps.Value - row.BaselineFps.Value;
+        double p1Delta = (row.AfterOnePctLow ?? 0) - (row.BaselineOnePctLow ?? 0);
+        return $"FPS {Signed(fpsDelta)}, 1% lows {Signed(p1Delta)}";
+    }
+
+    private static string Signed(double v) => (v >= 0 ? "+" : "") + v.ToString("0.0", CultureInfo.InvariantCulture);
+
     private void RaiseCanExecuteChanged()
     {
         GamingCommand.RaiseCanExecuteChanged();
         RestoreCommand.RaiseCanExecuteChanged();
+        ProveItCommand.RaiseCanExecuteChanged();
     }
 
     private bool Set<T>(ref T field, T value, [CallerMemberName] string? name = null)

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading;
 using CoreCage.App.Services;
 
@@ -13,6 +14,15 @@ internal sealed class FakeOptimizeService : IOptimizeService
     public int GamingCalls, RestoreCalls;
     public bool ThrowOnGaming;
     public bool GamingActive;
+
+    public List<LedgerRowInfo> LedgerRowsValue { get; set; } = new();
+    public int ProveItCalls;
+    public bool ThrowOnProveIt;
+    public OptimizeResult ProveItResult { get; set; } = new(true, "Proved it: FPS +12.3, 1% lows +8.1.");
+    /// <summary>Signals that ProveItAsync has started.</summary>
+    public readonly ManualResetEventSlim ProveItEntered = new(false);
+    /// <summary>Open by default; a test can Reset() it to hold ProveItAsync mid-flight.</summary>
+    public readonly ManualResetEventSlim ProveItRelease = new(true);
 
     public int LogicalCoreCount { get; set; } = 8;
     public bool CoreCageEnabledValue { get; set; } = true;
@@ -60,5 +70,16 @@ internal sealed class FakeOptimizeService : IOptimizeService
     {
         CoreCageReservedCoresWrites++;
         CoreCageReservedCoresValue = reservedCores;
+    }
+
+    public IReadOnlyList<LedgerRowInfo> ReadLedgerRows() => LedgerRowsValue;
+
+    public Task<OptimizeResult> ProveItAsync(IProgress<string>? progress = null)
+    {
+        ProveItCalls++;
+        ProveItEntered.Set();
+        ProveItRelease.Wait();
+        if (ThrowOnProveIt) throw new InvalidOperationException("prove it boom");
+        return Task.FromResult(ProveItResult);
     }
 }

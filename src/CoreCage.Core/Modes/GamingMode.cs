@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using CoreCage.Core.Caging;
+using CoreCage.Core.Ledger;
 
 namespace CoreCage.Core.Modes
 {
@@ -54,6 +55,14 @@ namespace CoreCage.Core.Modes
         // Apply and Revert is the same class of gap RestoreEverything (Big Red Button) exists to catch.
         private CagePlan? _lastCagePlan;
 
+        // Tweak Ledger -- "what's active + what it earned you" (Task 6). Each pipeline layer gets its
+        // own stable TweakId so the Optimize page can show/benchmark them independently.
+        private TweakLedger _ledger;
+        internal const string TweakIdGamingPipeline = "gaming-pipeline";
+        internal const string TweakIdEacPolish = "eac-polish";
+        internal const string TweakIdCoreUnpark = "core-unpark";
+        internal const string TweakIdCoreCage = "core-cage";
+
         public GamingMode(string? statePath = null)
         {
             _statePath = statePath ?? DefaultStatePath();
@@ -68,14 +77,18 @@ namespace CoreCage.Core.Modes
             _gamingProcessList = () => UserProcessLists.GetList("gaming");
             _applyCoreCage = ApplyCoreCageReal;
             _releaseCoreCage = ReleaseCoreCageReal;
+            _ledger = TweakLedger.Load(TweakLedger.DefaultPath());
         }
 
         /// <summary>
-        /// Test-only seam (review follow-up, MINOR-1/IMPORTANT-1): lets the test project swap every
-        /// Revert-side delegate for an in-memory fake, so RevertAsync's own sequencing/decision logic
-        /// (e.g. "release whenever a cage plan exists, regardless of the current flag") can be driven
-        /// end-to-end without ever touching the real OS. Apply-side delegates keep their real
-        /// implementations since no test needs to fake Apply.
+        /// Test-only seam (review follow-up, MINOR-1/IMPORTANT-1; extended Task 6 for the ledger): lets
+        /// the test project swap every Apply-side and Revert-side delegate for an in-memory fake, plus
+        /// inject an in-memory <see cref="TweakLedger"/>, so ApplyAsync/RevertAsync's own
+        /// sequencing/recording logic (e.g. "release whenever a cage plan exists, regardless of the
+        /// current flag"; "record a ledger row per applied step") can be driven end-to-end without ever
+        /// touching the real OS or the real ledger file. The apply-side parameters are optional/null
+        /// (defaulting to the real implementations already set by the base constructor) so the original
+        /// revert-only fake tests (GamingModeRevertReleaseTests) keep compiling unchanged.
         /// </summary>
         internal GamingMode(
             string? statePath,
@@ -84,7 +97,12 @@ namespace CoreCage.Core.Modes
             Action restoreGamingModePlusPlus,
             Func<bool> restoreCoreUnpark,
             Func<IEnumerable<string>> gamingProcessList,
-            Func<RestoreSummary> restoreEverything)
+            Func<RestoreSummary> restoreEverything,
+            Action? applyGamingModePlusPlus = null,
+            Func<IEnumerable<string>, int>? applyPolish = null,
+            Action? applyCoreUnpark = null,
+            Func<int>? applyCoreCage = null,
+            TweakLedger? ledger = null)
             : this(statePath)
         {
             _releaseCoreCage = releaseCoreCage;
@@ -93,6 +111,11 @@ namespace CoreCage.Core.Modes
             _restoreCoreUnpark = restoreCoreUnpark;
             _gamingProcessList = gamingProcessList;
             _restoreEverything = restoreEverything;
+            if (applyGamingModePlusPlus != null) _applyGamingModePlusPlus = applyGamingModePlusPlus;
+            if (applyPolish != null) _applyPolish = applyPolish;
+            if (applyCoreUnpark != null) _applyCoreUnpark = applyCoreUnpark;
+            if (applyCoreCage != null) _applyCoreCage = applyCoreCage;
+            if (ledger != null) _ledger = ledger;
         }
 
         /// <summary>Test-only seam: lets a test simulate "Apply already ran and cached a plan" without
@@ -115,14 +138,17 @@ namespace CoreCage.Core.Modes
                     progress?.Report("Gaming Mode++ (MSI/NIC/GameDVR/UWP/QoS) applying...");
                     _applyGamingModePlusPlus();
                     steps.Add("Gaming Mode++ applied");
+                    RecordLedgerEntry(TweakIdGamingPipeline);
 
                     progress?.Report("EAC-safe polish applying to gaming process list...");
                     int polished = _applyPolish(_gamingProcessList());
                     steps.Add($"EAC-safe polish applied ({polished} process(es))");
+                    RecordLedgerEntry(TweakIdEacPolish);
 
                     progress?.Report("Core-unpark + perf-floor applying...");
                     _applyCoreUnpark();
                     steps.Add("Core-unpark applied");
+                    RecordLedgerEntry(TweakIdCoreUnpark);
 
                     int caged = 0;
                     if (FeatureFlags.Current.CoreCageEnabled)
@@ -130,8 +156,10 @@ namespace CoreCage.Core.Modes
                         progress?.Report("Core Cage: reserving cores for the game...");
                         caged = _applyCoreCage();
                         steps.Add($"Core Cage applied (caged {caged} process(es))");
+                        RecordLedgerEntry(TweakIdCoreCage);
                     }
 
+                    SaveLedger();
                     SaveState(true);
                     progress?.Report("Gaming Mode applied.");
                     string cageNote = FeatureFlags.Current.CoreCageEnabled ? $" -- caged {caged} process(es)" : "";
@@ -165,20 +193,25 @@ namespace CoreCage.Core.Modes
                         progress?.Report("Core Cage: releasing cores...");
                         released = _releaseCoreCage();
                         steps.Add($"Core Cage released ({released} process(es))");
+                        _ledger.Deactivate(TweakIdCoreCage);
                     }
 
                     progress?.Report("EAC-safe polish reverting...");
                     int restored = _restorePolish(_gamingProcessList());
                     steps.Add($"EAC-safe polish restored ({restored} process(es))");
+                    _ledger.Deactivate(TweakIdEacPolish);
 
                     progress?.Report("Gaming Mode++ reverting...");
                     _restoreGamingModePlusPlus();
                     steps.Add("Gaming Mode++ reverted");
+                    _ledger.Deactivate(TweakIdGamingPipeline);
 
                     progress?.Report("Core-unpark reverting...");
                     bool coreUnparkRestored = _restoreCoreUnpark();
                     steps.Add(coreUnparkRestored ? "Core-unpark restored" : "Core-unpark: nothing to restore");
+                    _ledger.Deactivate(TweakIdCoreUnpark);
 
+                    SaveLedger();
                     SaveState(false);
                     progress?.Report("Gaming Mode reverted.");
                     string cageNote = hadCagePlan ? $" -- released {released} process(es)" : "";
@@ -193,6 +226,8 @@ namespace CoreCage.Core.Modes
                     {
                         RestoreSummary summary = _restoreEverything();
                         steps.Add("RestoreEverything: " + summary);
+                        DeactivateAllLedgerEntries();
+                        SaveLedger();
                         SaveState(false);
                         progress?.Report("Full system restore complete.");
                         return new ModeResult(true, "Gaming Mode revert fell back to full system restore", steps);
@@ -334,6 +369,29 @@ namespace CoreCage.Core.Modes
 
         [DllImport("user32.dll")]
         private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        // ------------------------------------------------------------------
+        // Tweak Ledger -- "what's active + what it earned you" (Task 6). Recording is a plain
+        // in-memory Record() per step (benchmark fields null -- "not yet benchmarked" until a Prove It
+        // run fills them in); the actual file write is batched to one SaveLedger() call per
+        // Apply/Revert so a partial pipeline failure doesn't leave a half-written ledger file.
+        // ------------------------------------------------------------------
+        private void RecordLedgerEntry(string tweakId) =>
+            _ledger.Record(new LedgerEntry(tweakId, DateTimeOffset.Now, true, null, null, null, null));
+
+        private void DeactivateAllLedgerEntries()
+        {
+            _ledger.Deactivate(TweakIdGamingPipeline);
+            _ledger.Deactivate(TweakIdEacPolish);
+            _ledger.Deactivate(TweakIdCoreUnpark);
+            _ledger.Deactivate(TweakIdCoreCage);
+        }
+
+        private void SaveLedger()
+        {
+            try { _ledger.Save(); }
+            catch (Exception ex) { Logger.LogError("GamingMode: ledger save failed", ex); }
+        }
 
         // ------------------------------------------------------------------
         // Persisted IsActive flag -- crash-detectable at next launch.

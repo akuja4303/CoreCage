@@ -1,6 +1,7 @@
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using CoreCage.App;
+using CoreCage.App.Services;
 
 namespace CoreCage.Tests;
 
@@ -141,5 +142,118 @@ public sealed class OptimizeViewModelTests
         await running;
 
         Assert.IsTrue(vm.CanEditCoreCageSettings, "Core Cage settings re-enable when done");
+    }
+
+    // ------------------------------------------------------------------
+    // Tweak Ledger card + "Prove it" (Task 6)
+    // ------------------------------------------------------------------
+
+    [TestMethod]
+    public void No_ledger_rows_shows_the_empty_state()
+    {
+        var fake = new FakeOptimizeService(); // LedgerRowsValue defaults to empty
+        var vm = new OptimizeViewModel(fake);
+
+        Assert.IsTrue(vm.IsLedgerEmpty);
+        Assert.AreEqual(0, vm.LedgerRows.Count);
+    }
+
+    [TestMethod]
+    public void Ledger_rows_show_measured_delta_when_benchmarked()
+    {
+        var fake = new FakeOptimizeService
+        {
+            LedgerRowsValue = { new LedgerRowInfo("gaming-pipeline", true, 130.0, 88.0, 142.3, 96.1) }
+        };
+        var vm = new OptimizeViewModel(fake);
+
+        Assert.IsFalse(vm.IsLedgerEmpty);
+        var row = vm.LedgerRows.Single();
+        Assert.AreEqual("Gaming Mode++", row.DisplayName);
+        Assert.IsTrue(row.Active);
+        StringAssert.Contains(row.DeltaText, "FPS +12.3");
+        StringAssert.Contains(row.DeltaText, "1% lows +8.1");
+    }
+
+    [TestMethod]
+    public void Ledger_rows_show_not_yet_benchmarked_when_never_proven()
+    {
+        var fake = new FakeOptimizeService
+        {
+            LedgerRowsValue = { new LedgerRowInfo("core-cage", true, null, null, null, null) }
+        };
+        var vm = new OptimizeViewModel(fake);
+
+        Assert.AreEqual("not yet benchmarked", vm.LedgerRows.Single().DeltaText);
+    }
+
+    [TestMethod]
+    public async Task ProveIt_runs_and_reports_success_then_refreshes_the_ledger()
+    {
+        var fake = new FakeOptimizeService
+        {
+            ProveItResult = new(true, "Proved it: FPS +12.3, 1% lows +8.1."),
+        };
+        var vm = new OptimizeViewModel(fake);
+        // Simulate the service's ledger having been updated by the real ProveItAsync by the time
+        // RefreshLedgerRows runs in RunAsync's finally block.
+        fake.LedgerRowsValue.Add(new LedgerRowInfo("gaming-pipeline", true, 130.0, 88.0, 142.3, 96.1));
+
+        await vm.ProveItAsync();
+
+        Assert.AreEqual(1, fake.ProveItCalls);
+        Assert.IsTrue(vm.LastOk);
+        StringAssert.Contains(vm.StatusMessage, "Proved it");
+        Assert.IsFalse(vm.IsBusy);
+        Assert.IsFalse(vm.IsLedgerEmpty, "ledger should refresh after Prove It completes");
+    }
+
+    [TestMethod]
+    public async Task ProveIt_missing_PresentMon_surfaces_the_error_without_crashing()
+    {
+        var fake = new FakeOptimizeService
+        {
+            ProveItResult = new(false, "PresentMon.exe not found. Download it from https://github.com/GameTechDev/PresentMon/releases and try again."),
+        };
+        var vm = new OptimizeViewModel(fake);
+
+        await vm.ProveItAsync();
+
+        Assert.IsFalse(vm.LastOk);
+        StringAssert.Contains(vm.StatusMessage, "PresentMon");
+        Assert.IsFalse(vm.IsBusy, "busy clears even when Prove It reports a handled failure");
+    }
+
+    [TestMethod]
+    public async Task ProveIt_thrown_exception_surfaces_error_without_crashing()
+    {
+        var fake = new FakeOptimizeService { ThrowOnProveIt = true };
+        var vm = new OptimizeViewModel(fake);
+
+        await vm.ProveItAsync();
+
+        Assert.IsFalse(vm.LastOk);
+        Assert.IsFalse(vm.IsBusy);
+        StringAssert.Contains(vm.StatusMessage, "failed");
+    }
+
+    [TestMethod]
+    public async Task ProveIt_button_disables_while_capturing_and_re_enables_when_done()
+    {
+        var fake = new FakeOptimizeService();
+        fake.ProveItRelease.Reset(); // hold ProveItAsync open
+
+        var vm = new OptimizeViewModel(fake);
+        var running = vm.ProveItAsync();
+        Assert.IsTrue(fake.ProveItEntered.Wait(2000), "the action should have started");
+
+        Assert.IsTrue(vm.IsBusy);
+        Assert.IsFalse(vm.ProveItCommand.CanExecute(null), "Prove it disables while capturing");
+        Assert.IsFalse(vm.GamingCommand.CanExecute(null), "Gaming/Restore also disable during Prove it -- one action in flight at a time");
+
+        fake.ProveItRelease.Set();
+        await running;
+
+        Assert.IsTrue(vm.ProveItCommand.CanExecute(null), "Prove it re-enables when done");
     }
 }
