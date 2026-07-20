@@ -88,6 +88,93 @@ namespace CoreCage.Tests
         }
 
         // ------------------------------------------------------------------
+        // CRITICAL review fix: Apply()/Revert() failures must abort honestly, not be swallowed
+        // ------------------------------------------------------------------
+
+        [TestMethod]
+        public async Task ApplyFails_ShortCircuits_NoSecondBench_AndNoLedgerRowRecorded()
+        {
+            // Mirrors the production Apply() closure: when the underlying ModeResult.Success is false
+            // it must throw (naming the failed step) instead of silently returning as if it succeeded.
+            var calls = new List<string>();
+            int benchCall = 0;
+            Task<FrametimeStats> Bench() { benchCall++; calls.Add("bench"); return Task.FromResult(Stats(10)); }
+            Task Apply() { calls.Add("apply"); throw new InvalidOperationException("apply: Gaming Mode apply failed (mock)."); }
+            Task Revert() { calls.Add("revert"); return Task.CompletedTask; }
+
+            string path = Path.Combine(Path.GetTempPath(), $"corecage-provefail-apply-{Guid.NewGuid()}.json");
+            try
+            {
+                var ledger = new TweakLedger(path);
+
+                Exception? caught = null;
+                try
+                {
+                    (FrametimeStats before, FrametimeStats after) =
+                        await EngineOptimizeService.RunProveItSequenceAsync(Bench, Apply, Revert, wasActive: false);
+                    // Production code only ever calls RecordWholeStackBenchmark after the sequence
+                    // returns successfully -- this line must be unreachable when apply throws.
+                    EngineOptimizeService.RecordWholeStackBenchmark(ledger, before, after, active: true);
+                }
+                catch (Exception ex)
+                {
+                    caught = ex;
+                }
+
+                Assert.IsNotNull(caught, "apply failure must propagate out of the sequence, not be swallowed.");
+                StringAssert.Contains(caught!.Message, "apply");
+                CollectionAssert.AreEqual(new[] { "bench", "apply" }, calls,
+                    "must short-circuit after apply fails -- the second bench must never run.");
+                Assert.AreEqual(1, benchCall, "only the baseline bench may run before an apply failure aborts the sequence.");
+                Assert.AreEqual(0, ledger.Entries.Count, "no ledger row may be written when the sequence aborted.");
+            }
+            finally
+            {
+                try { if (File.Exists(path)) File.Delete(path); } catch { /* best-effort */ }
+            }
+        }
+
+        [TestMethod]
+        public async Task RevertFails_ShortCircuits_NoBenchAtAll_AndNoLedgerRowRecorded()
+        {
+            // Mirrors the production Revert() closure (pre-revert path, wasActive=true): a failed revert
+            // must abort BEFORE the first ("clean baseline") bench even runs -- otherwise bench #1 would
+            // capture a tweaks-still-on machine while being reported as the tweaks-off baseline.
+            var calls = new List<string>();
+            Task<FrametimeStats> Bench() { calls.Add("bench"); return Task.FromResult(Stats(10)); }
+            Task Apply() { calls.Add("apply"); return Task.CompletedTask; }
+            Task Revert() { calls.Add("revert"); throw new InvalidOperationException("revert: Gaming Mode revert failed (mock)."); }
+
+            string path = Path.Combine(Path.GetTempPath(), $"corecage-provefail-revert-{Guid.NewGuid()}.json");
+            try
+            {
+                var ledger = new TweakLedger(path);
+
+                Exception? caught = null;
+                try
+                {
+                    (FrametimeStats before, FrametimeStats after) =
+                        await EngineOptimizeService.RunProveItSequenceAsync(Bench, Apply, Revert, wasActive: true);
+                    EngineOptimizeService.RecordWholeStackBenchmark(ledger, before, after, active: true);
+                }
+                catch (Exception ex)
+                {
+                    caught = ex;
+                }
+
+                Assert.IsNotNull(caught, "revert failure must propagate out of the sequence, not be swallowed.");
+                StringAssert.Contains(caught!.Message, "revert");
+                CollectionAssert.AreEqual(new[] { "revert" }, calls,
+                    "must short-circuit before the first bench when the pre-revert fails.");
+                Assert.AreEqual(0, ledger.Entries.Count, "no ledger row may be written when the sequence aborted.");
+            }
+            finally
+            {
+                try { if (File.Exists(path)) File.Delete(path); } catch { /* best-effort */ }
+            }
+        }
+
+        // ------------------------------------------------------------------
         // Ledger recording: one whole-stack row, step rows untouched
         // ------------------------------------------------------------------
 
@@ -105,7 +192,7 @@ namespace CoreCage.Tests
                 var before = Stats(150); // 100fps
                 var after = Stats(150);
 
-                EngineOptimizeService.RecordWholeStackBenchmark(ledger, before, after);
+                EngineOptimizeService.RecordWholeStackBenchmark(ledger, before, after, active: true);
 
                 Assert.AreEqual(4, ledger.Entries.Count, "the 3 step rows plus the new whole-stack row.");
 
@@ -121,6 +208,31 @@ namespace CoreCage.Tests
                     Assert.IsTrue(row.Active, $"{stepId} must keep its Active status.");
                     Assert.IsNull(row.BaselineFps, $"{stepId} must NOT get a copied delta from the whole-stack bench.");
                 }
+            }
+            finally
+            {
+                try { if (File.Exists(path)) File.Delete(path); } catch { /* best-effort */ }
+            }
+        }
+
+        [TestMethod]
+        public void RecordWholeStackBenchmark_HonorsActiveParameter_NotHardcodedTrue()
+        {
+            // CRITICAL review fix: the whole-stack row's Active used to be hardcoded `true` regardless
+            // of whether Gaming Mode actually ended up active. It must reflect the real post-sequence
+            // IModeModule.IsActive read the caller passes in.
+            string path = Path.Combine(Path.GetTempPath(), $"corecage-wholestack-inactive-test-{Guid.NewGuid()}.json");
+            try
+            {
+                var ledger = new TweakLedger(path);
+                var before = Stats(150);
+                var after = Stats(150);
+
+                EngineOptimizeService.RecordWholeStackBenchmark(ledger, before, after, active: false);
+
+                var row = ledger.Entries.Single(e => e.TweakId == "gaming-stack");
+                Assert.IsFalse(row.Active, "must record the real post-sequence active state, not a hardcoded true.");
+                Assert.AreEqual(before.AvgFps, row.BaselineFps, "measured numbers must still be recorded even when inactive.");
             }
             finally
             {

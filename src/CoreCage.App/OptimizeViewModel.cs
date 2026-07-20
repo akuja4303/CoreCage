@@ -208,10 +208,11 @@ public sealed class OptimizeViewModel : INotifyPropertyChanged
         IsLedgerEmpty = LedgerRows.Count == 0;
     }
 
-    /// <summary>TweakId for the single whole-stack row Prove It records to (mirrors
-    /// <see cref="EngineOptimizeService.WholeStackTweakId"/> without pulling CoreCage.Core.Ledger into
-    /// the ViewModel).</summary>
-    internal const string WholeStackTweakId = "gaming-stack";
+    /// <summary>TweakId for the single whole-stack row Prove It records to. Sourced from the shared
+    /// <see cref="CoreCage.Core.Ledger.TweakIds.GamingStack"/> constant (mirrors
+    /// <see cref="EngineOptimizeService.WholeStackTweakId"/>) so the "gaming-stack" literal isn't
+    /// duplicated across the two classes (review MINOR finding).</summary>
+    internal const string WholeStackTweakId = CoreCage.Core.Ledger.TweakIds.GamingStack;
 
     /// <summary>Human name for a TweakId — pure, unit-testable without a service.</summary>
     internal static string LedgerDisplayName(string tweakId) => tweakId switch

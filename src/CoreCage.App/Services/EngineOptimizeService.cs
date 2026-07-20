@@ -91,12 +91,16 @@ public sealed class EngineOptimizeService : IOptimizeService
         async Task Apply()
         {
             progress?.Report("Applying Gaming Mode for the on-capture...");
-            if (gaming != null) await gaming.ApplyAsync(progress).ConfigureAwait(false);
+            if (gaming == null) return;
+            ModeResult result = await gaming.ApplyAsync(progress).ConfigureAwait(false);
+            if (!result.Success) throw new ProveItStepFailedException("apply", result.Summary);
         }
         async Task Revert()
         {
             progress?.Report("Reverting Gaming Mode to get a clean baseline...");
-            if (gaming != null) await gaming.RevertAsync(progress).ConfigureAwait(false);
+            if (gaming == null) return;
+            ModeResult result = await gaming.RevertAsync(progress).ConfigureAwait(false);
+            if (!result.Success) throw new ProveItStepFailedException("revert", result.Summary);
         }
 
         try
@@ -108,8 +112,9 @@ public sealed class EngineOptimizeService : IOptimizeService
             if (captureError != null || before.FrameCount == 0 || after.FrameCount == 0)
                 return new OptimizeResult(false, $"Benchmark capture failed: {captureError ?? "no frames captured -- is the game presenting, and is CoreCage elevated?"}");
 
+            bool activeAfterSequence = gaming?.IsActive ?? false;
             var ledger = TweakLedger.Load(TweakLedger.DefaultPath());
-            RecordWholeStackBenchmark(ledger, before, after);
+            RecordWholeStackBenchmark(ledger, before, after, activeAfterSequence);
             ledger.Save();
 
             double fpsDelta = after.AvgFps - before.AvgFps;
@@ -117,9 +122,37 @@ public sealed class EngineOptimizeService : IOptimizeService
             return new OptimizeResult(true,
                 $"Proved it: FPS {Signed(fpsDelta)}, 1% lows {Signed(p1Delta)}.");
         }
+        catch (ProveItStepFailedException ex)
+        {
+            // CRITICAL review fix: Apply()/Revert() above used to discard ModeResult.Success and press
+            // on regardless -- if re-apply failed after a successful pre-revert, bench #2 silently
+            // captured the tweaks-OFF machine and the user got a fabricated "Proved it: FPS ..." success
+            // message. Now any step failure throws here and aborts the sequence honestly, before any
+            // ledger row is written -- no numbers are ever recorded from a corrupted A/B.
+            string honestState = ex.Step == "apply"
+                ? " Gaming Mode is currently OFF -- hit Gaming Mode to re-apply."
+                : " Gaming Mode may still be partially active -- check the Gaming Mode status before retrying.";
+            return new OptimizeResult(false, $"Prove it aborted -- {ex.Step} failed: {ex.Message}.{honestState}");
+        }
         catch (Exception ex)
         {
             return new OptimizeResult(false, $"Prove it failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Thrown by the Prove-It Apply()/Revert() delegates when the underlying <see cref="ModeResult"/>
+    /// reports failure -- <c>IModeModule.ApplyAsync</c>/<c>RevertAsync</c> catch internally and return
+    /// <c>Success=false</c> rather than throw, so this is how that failure is turned into an honest
+    /// short-circuit instead of being silently discarded (review CRITICAL finding).
+    /// </summary>
+    private sealed class ProveItStepFailedException : Exception
+    {
+        public string Step { get; }
+
+        public ProveItStepFailedException(string step, string summary) : base(summary)
+        {
+            Step = step;
         }
     }
 
@@ -155,8 +188,10 @@ public sealed class EngineOptimizeService : IOptimizeService
         return null;
     }
 
-    /// <summary>TweakId for the single whole-stack ledger row Prove It writes to.</summary>
-    internal const string WholeStackTweakId = "gaming-stack";
+    /// <summary>TweakId for the single whole-stack ledger row Prove It writes to. Sourced from the
+    /// shared <see cref="TweakIds.GamingStack"/> constant so the string isn't duplicated across
+    /// CoreCage.App (this class and <c>OptimizeViewModel</c>) (review MINOR finding).</summary>
+    internal const string WholeStackTweakId = TweakIds.GamingStack;
 
     /// <summary>
     /// Records the measured A/B on exactly ONE ledger row -- <see cref="WholeStackTweakId"/> -- rather
@@ -164,11 +199,14 @@ public sealed class EngineOptimizeService : IOptimizeService
     /// whole-stack A/B cannot attribute causation to individual tweaks (review CRITICAL-2); the
     /// individual step rows (gaming-pipeline / eac-polish / core-cage) are left untouched here -- they
     /// keep whatever Active status GamingMode gave them, and the UI shows them as "measured as part of
-    /// whole stack" instead of a copied per-tweak number.
+    /// whole stack" instead of a copied per-tweak number. <paramref name="active"/> is the real
+    /// post-sequence <c>IModeModule.IsActive</c> read, not a hardcoded assumption -- Prove It always
+    /// intends to end tweaks-ON, but the row must reflect what the machine actually is, not what the
+    /// sequence merely intended (review CRITICAL finding: this used to hardcode <c>true</c>).
     /// </summary>
-    internal static void RecordWholeStackBenchmark(TweakLedger ledger, FrametimeStats before, FrametimeStats after)
+    internal static void RecordWholeStackBenchmark(TweakLedger ledger, FrametimeStats before, FrametimeStats after, bool active)
     {
-        ledger.Record(new LedgerEntry(WholeStackTweakId, DateTimeOffset.Now, true,
+        ledger.Record(new LedgerEntry(WholeStackTweakId, DateTimeOffset.Now, active,
             before.AvgFps, before.P1LowFps, after.AvgFps, after.P1LowFps));
     }
 
