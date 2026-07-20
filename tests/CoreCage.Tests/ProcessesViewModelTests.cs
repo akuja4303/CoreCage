@@ -11,6 +11,19 @@ public sealed class ProcessesViewModelTests
     {
         var vm = new ProcessesViewModel(new FakeProcessService());
         Assert.AreEqual(3, vm.Processes.Count);
+        Assert.IsFalse(vm.IsEmpty);
+        Assert.IsTrue(vm.HasProcesses);
+    }
+
+    [TestMethod]
+    public void Empty_list_shows_honest_empty_state()
+    {
+        // FOLD (Task 8 UX pass): a zero-row list (e.g. a permission failure) must never render as a
+        // silent blank panel -- mirrors ProfilesViewModel's IsEmpty/HasProfiles pattern.
+        var vm = new ProcessesViewModel(new FakeProcessService { Procs = new() });
+        Assert.IsTrue(vm.IsEmpty);
+        Assert.IsFalse(vm.HasProcesses);
+        StringAssert.Contains(vm.StatusMessage.ToLowerInvariant(), "no processes found");
     }
 
     [TestMethod]

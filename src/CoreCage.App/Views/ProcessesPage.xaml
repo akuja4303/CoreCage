@@ -4,10 +4,11 @@
     <UserControl.Resources>
         <Style x:Key="ToolBtn" TargetType="Button">
             <Setter Property="Foreground" Value="{StaticResource TextHi}" />
-            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Margin" Value="0,0,10,0" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -26,15 +27,17 @@
         </Style>
         <Style x:Key="RowItem" TargetType="ListBoxItem">
             <Setter Property="Foreground" Value="{StaticResource TextHi}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
+            <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListBoxItem">
-                        <Border x:Name="R" Background="Transparent" CornerRadius="6" Padding="12,8" Margin="0,1">
+                        <Border x:Name="R" Background="Transparent" CornerRadius="6" Padding="12,8" Margin="0,0,0,4">
                             <ContentPresenter />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="R" Property="Background" Value="#18FFFFFF" /></Trigger>
-                            <Trigger Property="IsSelected" Value="True"><Setter TargetName="R" Property="Background" Value="#2E3B82F6" /></Trigger>
+                            <Trigger Property="IsSelected" Value="True"><Setter TargetName="R" Property="Background" Value="{StaticResource AccentSoft}" /></Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="R" Property="BorderBrush" Value="{StaticResource Focus}" /><Setter TargetName="R" Property="BorderThickness" Value="2" /></Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -55,7 +58,7 @@
         <TextBlock Grid.Row="0" Text="Processes" Style="{StaticResource H1}" />
 
         <!-- Toolbar -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,12">
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8,0,12">
             <Button Content="Refresh" Style="{StaticResource ToolBtn}" Background="{StaticResource Accent}"
                     Command="{Binding RefreshCommand}" AutomationProperties.Name="Refresh process list" />
             <Button Content="Kill selected" Style="{StaticResource ToolBtn}" Background="#FF9A3B3B"
@@ -63,31 +66,50 @@
         </StackPanel>
 
         <!-- Header -->
-        <Grid Grid.Row="2" Margin="12,0,12,4">
+        <Grid Grid.Row="2" Margin="12,0,12,4" Visibility="{Binding HasProcesses, Converter={StaticResource BoolToVis}}">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /><ColumnDefinition Width="110" /></Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" Text="PROCESS" Style="{StaticResource StatLabel}" />
             <TextBlock Grid.Column="1" Text="PID" Style="{StaticResource StatLabel}" />
             <TextBlock Grid.Column="2" Text="MEMORY" Style="{StaticResource StatLabel}" HorizontalAlignment="Right" />
         </Grid>
 
+        <!-- Empty state: never a silent blank panel -->
+        <Border Grid.Row="3" Background="{StaticResource Panel}" CornerRadius="12" Padding="32"
+                Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                <TextBlock Text="No processes found" Foreground="{StaticResource TextHi}" FontSize="{StaticResource FontSizeHeading}" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                <TextBlock Text="This can happen if CoreCage isn't running elevated. Try Refresh." Foreground="{StaticResource TextLo}"
+                           FontSize="{StaticResource FontSizeBody}" Margin="0,8,0,0" TextAlignment="Center" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+
         <ListBox Grid.Row="3" ItemsSource="{Binding Processes}" SelectedItem="{Binding Selected}"
                  Background="{StaticResource Panel}" BorderThickness="0" Foreground="{StaticResource TextHi}"
                  ItemContainerStyle="{StaticResource RowItem}" HorizontalContentAlignment="Stretch"
-                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 Visibility="{Binding HasProcesses, Converter={StaticResource BoolToVis}}"
+                 AutomationProperties.Name="Process list">
             <ListBox.ItemTemplate>
                 <DataTemplate>
                     <Grid>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /><ColumnDefinition Width="110" /></Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="15" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Grid.Column="1" Text="{Binding Pid}" FontSize="15" Foreground="{StaticResource TextLo}" />
-                        <TextBlock Grid.Column="2" Text="{Binding MemoryMb, StringFormat={}{0:F0} MB}" FontSize="15" HorizontalAlignment="Right" />
+                        <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="{StaticResource FontSizeBody}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="1" Text="{Binding Pid}" FontSize="{StaticResource FontSizeBody}" Foreground="{StaticResource TextLo}" />
+                        <TextBlock Grid.Column="2" Text="{Binding MemoryMb, StringFormat={}{0:F0} MB}" FontSize="{StaticResource FontSizeBody}" HorizontalAlignment="Right" />
                     </Grid>
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>
 
-        <Border Grid.Row="4" Background="#22FFFFFF" CornerRadius="8" Padding="14,10" Margin="0,12,0,0">
-            <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource TextHi}" FontSize="14" TextWrapping="Wrap" />
+        <!-- Status / feedback: glyph + color together (not color alone), text unchanged. -->
+        <Border Grid.Row="4" Background="{StaticResource Panel}" CornerRadius="8" Padding="16,12" Margin="0,12,0,0">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding LastOk, Converter={StaticResource LastOkToGlyph}}" VerticalAlignment="Center"
+                           Margin="0,0,8,0" FontWeight="Bold" FontSize="{StaticResource FontSizeBody}"
+                           Foreground="{Binding LastOk, Converter={StaticResource LastOkToBrush}}" />
+                <TextBlock Text="{Binding StatusMessage}" Foreground="{Binding LastOk, Converter={StaticResource LastOkToBrush}}"
+                           FontSize="{StaticResource FontSizeBody}" TextWrapping="Wrap" />
+            </StackPanel>
         </Border>
     </Grid>
 </UserControl>

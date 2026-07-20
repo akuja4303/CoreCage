@@ -12,17 +12,17 @@
         <Grid Grid.Row="0">
             <TextBlock Text="Monitor" Style="{StaticResource H1}" HorizontalAlignment="Left" />
             <TextBlock Text="{Binding StatusText}" HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                       Foreground="{StaticResource TextLo}" FontSize="14" />
+                       Foreground="{StaticResource TextLo}" FontSize="{StaticResource FontSizeBody}" />
         </Grid>
-        <TextBlock Grid.Row="1" Margin="0,4,0,20" Foreground="{StaticResource TextLo}" FontSize="15"
+        <TextBlock Grid.Row="1" Margin="0,4,0,20" Foreground="{StaticResource TextLo}" FontSize="{StaticResource FontSizeBody}"
                    Text="Live hardware, read straight from the in-process engine. A dead sensor shows a dash, never a fake reading." />
 
-        <!-- Error state -->
+        <!-- Error state: distinct background/border AND explicit wording — never color-only. -->
         <Border Grid.Row="2" Background="#FF3A2323" BorderBrush="#FF8A4B4B" BorderThickness="1.5"
-                CornerRadius="8" Padding="16,12" Margin="0,0,0,18"
+                CornerRadius="8" Padding="16,12" Margin="0,0,0,16"
                 Visibility="{Binding IsError, Converter={StaticResource BoolToVis}}">
             <TextBlock Text="Sensor backend unavailable — run elevated so the hardware monitor can start."
-                       Foreground="#FFF5C6C6" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                       Foreground="#FFF5C6C6" FontSize="{StaticResource FontSizeBody}" FontWeight="SemiBold" TextWrapping="Wrap" />
         </Border>
 
         <!-- Metric cards -->
@@ -33,7 +33,7 @@
                     <TextBlock Text="{Binding CpuTempText}" Style="{StaticResource StatValue}" />
                 </StackPanel>
             </Border>
-            <Border Background="{StaticResource Panel}" CornerRadius="12" Padding="20" Margin="6,0,6,12">
+            <Border Background="{StaticResource Panel}" CornerRadius="12" Padding="20" Margin="4,0,4,12">
                 <StackPanel>
                     <TextBlock Text="GPU TEMP" Style="{StaticResource StatLabel}" />
                     <TextBlock Text="{Binding GpuTempText}" Style="{StaticResource StatValue}" />
@@ -49,13 +49,13 @@
                     Grid.ColumnSpan="2">
                 <StackPanel>
                     <TextBlock Text="CPU" Style="{StaticResource StatLabel}" />
-                    <TextBlock Text="{Binding CpuName}" Style="{StaticResource StatValue}" FontSize="16" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding CpuName}" Style="{StaticResource StatValue}" FontSize="{StaticResource FontSizeBodyLg}" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
-            <Border Background="{StaticResource Panel}" CornerRadius="12" Padding="20" Margin="6,0,6,0">
+            <Border Background="{StaticResource Panel}" CornerRadius="12" Padding="20" Margin="4,0,4,0">
                 <StackPanel>
                     <TextBlock Text="GPU" Style="{StaticResource StatLabel}" />
-                    <TextBlock Text="{Binding GpuName}" Style="{StaticResource StatValue}" FontSize="16" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding GpuName}" Style="{StaticResource StatValue}" FontSize="{StaticResource FontSizeBodyLg}" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
         </UniformGrid>

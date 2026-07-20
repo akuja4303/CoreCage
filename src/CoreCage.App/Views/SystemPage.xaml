@@ -11,19 +11,20 @@
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0" Text="System" Style="{StaticResource H1}" />
-        <TextBlock Grid.Row="1" Margin="0,4,0,18" Foreground="{StaticResource TextLo}" FontSize="15"
+        <TextBlock Grid.Row="1" Margin="0,4,0,16" Foreground="{StaticResource TextLo}" FontSize="{StaticResource FontSizeBody}"
                    Text="Free up memory. Reversible, safe — Windows re-caches as needed." />
 
         <!-- RAM card -->
-        <Border Grid.Row="2" Background="{StaticResource Panel}" CornerRadius="12" Padding="22" Margin="0,0,0,20">
+        <Border Grid.Row="2" Background="{StaticResource Panel}" CornerRadius="12" Padding="20" Margin="0,0,0,20">
             <StackPanel>
                 <Grid>
                     <TextBlock Text="MEMORY" Style="{StaticResource StatLabel}" HorizontalAlignment="Left" />
                     <TextBlock Text="{Binding AvailableText}" Style="{StaticResource StatLabel}" HorizontalAlignment="Right" />
                 </Grid>
-                <TextBlock Text="{Binding RamText}" Style="{StaticResource StatValue}" Margin="0,2,0,10" />
-                <ProgressBar Value="{Binding UsedPct, Mode=OneWay}" Maximum="100" Height="10"
-                             Foreground="{StaticResource Accent}" Background="#FF262A34" BorderThickness="0" />
+                <TextBlock Text="{Binding RamText}" Style="{StaticResource StatValue}" Margin="0,4,0,12" />
+                <ProgressBar Value="{Binding UsedPct, Mode=OneWay}" Maximum="100" Height="12"
+                             Foreground="{StaticResource Accent}" Background="#FF262A34" BorderThickness="0"
+                             AutomationProperties.Name="Memory used percent" />
             </StackPanel>
         </Border>
 
@@ -36,14 +37,23 @@
             </Grid.ColumnDefinitions>
             <Button Grid.Column="0" Content="Free working sets" Style="{StaticResource BigActionButton}"
                     Background="{StaticResource Accent}" Command="{Binding FreeWorkingSetsCommand}"
+                    AutomationProperties.Name="Free working sets"
                     AutomationProperties.HelpText="Trim process working sets back to RAM" />
             <Button Grid.Column="2" Content="Clear standby list" Style="{StaticResource BigActionButton}"
                     Background="#FF0F766E" Command="{Binding ClearStandbyCommand}"
+                    AutomationProperties.Name="Clear standby list"
                     AutomationProperties.HelpText="Purge the Windows cached standby memory" />
         </Grid>
 
-        <Border Grid.Row="4" Background="#22FFFFFF" CornerRadius="8" Padding="14,10" Margin="0,18,0,0">
-            <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource TextHi}" FontSize="15" TextWrapping="Wrap" />
+        <!-- Status / feedback: glyph + color together (not color alone), text unchanged. -->
+        <Border Grid.Row="4" Background="{StaticResource Panel}" CornerRadius="8" Padding="16,12" Margin="0,16,0,0">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding LastOk, Converter={StaticResource LastOkToGlyph}}" VerticalAlignment="Center"
+                           Margin="0,0,8,0" FontWeight="Bold" FontSize="{StaticResource FontSizeBody}"
+                           Foreground="{Binding LastOk, Converter={StaticResource LastOkToBrush}}" />
+                <TextBlock Text="{Binding StatusMessage}" Foreground="{Binding LastOk, Converter={StaticResource LastOkToBrush}}"
+                           FontSize="{StaticResource FontSizeBody}" TextWrapping="Wrap" />
+            </StackPanel>
         </Border>
     </Grid>
 </UserControl>

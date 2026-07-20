@@ -32,8 +32,8 @@
         <Border Grid.Column="0" Background="{StaticResource Rail}">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Top" Margin="20,24,20,16">
-                    <TextBlock Text="CoreCage" Foreground="{StaticResource TextHi}" FontSize="19" FontWeight="Bold" />
-                    <TextBlock Text="Gaming" Foreground="{StaticResource Accent}" FontSize="13" FontWeight="SemiBold" />
+                    <TextBlock Text="CoreCage" Foreground="{StaticResource TextHi}" FontSize="{StaticResource FontSizeHeading}" FontWeight="Bold" />
+                    <TextBlock Text="Gaming" Foreground="{StaticResource Accent}" FontSize="{StaticResource FontSizeCaption}" FontWeight="SemiBold" />
                 </StackPanel>
 
                 <ListBox ItemsSource="{Binding Sections}"
@@ -44,7 +44,8 @@
                          ItemContainerStyle="{StaticResource NavItem}"
                          HorizontalContentAlignment="Stretch"
                          KeyboardNavigation.DirectionalNavigation="Cycle"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         AutomationProperties.Name="Section navigation" />
             </DockPanel>
         </Border>
 

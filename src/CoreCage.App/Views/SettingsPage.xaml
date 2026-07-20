@@ -4,18 +4,18 @@
     <Grid Margin="32,28,32,28">
         <StackPanel>
             <TextBlock Text="Settings" Style="{StaticResource H1}" />
-            <TextBlock Margin="0,4,0,20" Foreground="{StaticResource TextLo}" FontSize="15" Text="{Binding About}" TextWrapping="Wrap" />
+            <TextBlock Margin="0,4,0,20" Foreground="{StaticResource TextLo}" FontSize="{StaticResource FontSizeBody}" Text="{Binding About}" TextWrapping="Wrap" />
 
-            <Border Background="{StaticResource Panel}" CornerRadius="12" Padding="22">
+            <Border Background="{StaticResource Panel}" CornerRadius="12" Padding="20">
                 <StackPanel>
                     <TextBlock Text="APP" Style="{StaticResource StatLabel}" />
-                    <TextBlock Text="{Binding AppName}" Style="{StaticResource StatValue}" Margin="0,0,0,14" />
+                    <TextBlock Text="{Binding AppName}" Style="{StaticResource StatValue}" Margin="0,0,0,16" />
                     <TextBlock Text="VERSION" Style="{StaticResource StatLabel}" />
-                    <TextBlock Text="{Binding Version}" Style="{StaticResource StatValue}" FontSize="18" Margin="0,0,0,14" />
+                    <TextBlock Text="{Binding Version}" Style="{StaticResource StatValue}" FontSize="{StaticResource FontSizeHeading}" Margin="0,0,0,16" />
                     <TextBlock Text="ELEVATION" Style="{StaticResource StatLabel}" />
-                    <TextBlock Text="{Binding ElevationText}" Foreground="{StaticResource TextHi}" FontSize="16" TextWrapping="Wrap" Margin="0,0,0,14" />
+                    <TextBlock Text="{Binding ElevationText}" Foreground="{StaticResource TextHi}" FontSize="{StaticResource FontSizeBodyLg}" TextWrapping="Wrap" Margin="0,0,0,16" />
                     <TextBlock Text="ENGINE" Style="{StaticResource StatLabel}" />
-                    <TextBlock Text="{Binding EngineText}" Foreground="{StaticResource TextHi}" FontSize="16" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding EngineText}" Foreground="{StaticResource TextHi}" FontSize="{StaticResource FontSizeBodyLg}" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
         </StackPanel>

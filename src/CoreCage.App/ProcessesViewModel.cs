@@ -42,11 +42,22 @@ public sealed class ProcessesViewModel : INotifyPropertyChanged
     private bool _lastOk = true;
     public bool LastOk { get => _lastOk; private set => Set(ref _lastOk, value); }
 
+    /// <summary>Whether the list came back with nothing to show (e.g. a permission failure returning
+    /// zero rows) — drives the Processes page's honest empty state instead of a blank list area.</summary>
+    public bool IsEmpty => Processes.Count == 0;
+
+    /// <summary>Inverse of <see cref="IsEmpty"/>, for the list's own visibility binding.</summary>
+    public bool HasProcesses => !IsEmpty;
+
     internal void Refresh()
     {
         Processes.Clear();
         foreach (var p in _svc.ListTopByMemory(TopN)) Processes.Add(p);
-        StatusMessage = $"{Processes.Count} processes (top {TopN} by memory).";
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsEmpty)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasProcesses)));
+        StatusMessage = Processes.Count == 0
+            ? "No processes found — this can happen if CoreCage isn't running elevated."
+            : $"{Processes.Count} processes (top {TopN} by memory).";
     }
 
     internal async Task KillSelectedAsync()
