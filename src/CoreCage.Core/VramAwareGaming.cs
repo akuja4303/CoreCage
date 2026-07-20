@@ -19,10 +19,10 @@ namespace CoreCage.Core
     /// as SystemTweaks.RestoreThrottledProcesses):
     ///   1. Unload Ollama models (keep_alive:0) — snapshot which were loaded, re-warm on exit.
     ///   2. Suspend Wallpaper Engine (wallpaper64.exe) — resume on exit.
-    ///   3. Deprioritize browser/Electron VRAM hogs to BelowNormal — NEVER kill (Gmail/charts live there).
+    ///   3. Deprioritize browser/Electron VRAM hogs to BelowNormal — NEVER kill (the user's tabs live there).
     ///
     /// Freed-VRAM delta is MEASURED via nvidia-smi before/after (measured, not claimed). Every step is
-    /// best-effort + logged; never throws. 🔒 System change — wired but apply-gated until Nate OKs.
+    /// best-effort + logged; never throws. 🔒 System change — wired but apply-gated by default.
     /// </summary>
     public static class VramAwareGaming
     {

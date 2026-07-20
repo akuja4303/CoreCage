@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Copied from RigOptimizer.csproj, minus Sentry, Velopack, and any analytics/telemetry packages. -->
+    <!-- Runtime dependencies. Telemetry/analytics packages are intentionally excluded — CoreCage ships no phone-home. -->
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
     <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.6" />
     <PackageReference Include="HidSharp" Version="2.6.4" />

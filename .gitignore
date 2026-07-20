@@ -4,3 +4,7 @@ obj/
 TestResults/
 *.user
 .vs/
+*.suo
+
+## Superpowers SDD scratch (never publish)
+.superpowers/

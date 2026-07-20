@@ -5,8 +5,10 @@ A **mode** in CoreCage is a self-contained bundle of tweaks with one Apply and o
 (Coding, Streaming, or a private module shipped outside this repo) attaches by implementing
 one interface and calling one register method — **no edit to CoreCage.Core source required**.
 
-The registry and the UI drive every mode uniformly; neither knows anything about a mode's
-actual tweaks. This is the "modulate later" seam.
+The registry drives every registered mode uniformly and knows nothing about a mode's actual
+tweaks — this is the "modulate later" seam. Note the *public* app ships a gaming-only UI wired
+to the `"Gaming"` module; a new mode registers and runs through the same engine seam but supplies
+its own UI surface (the shipped Optimize page won't display it automatically).
 
 ## The contract
 
