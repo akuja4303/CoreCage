@@ -106,7 +106,7 @@
                               Visibility="{Binding HasLedgerRows, Converter={StaticResource BoolToVis}}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Grid Margin="0,4"
+                            <Grid Margin="0,4" Focusable="True" KeyboardNavigation.IsTabStop="True"
                                   AutomationProperties.Name="{Binding DisplayName}"
                                   AutomationProperties.HelpText="{Binding DeltaText}">
                                 <Grid.ColumnDefinitions>

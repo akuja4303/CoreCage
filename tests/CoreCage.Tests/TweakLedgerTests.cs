@@ -123,5 +123,26 @@ namespace CoreCage.Tests
             Assert.IsNotNull(ledger);
             Assert.AreEqual(0, ledger!.Entries.Count);
         }
+
+        [TestMethod]
+        public void Save_IsAtomic_ProducesLoadableFile_AndLeavesNoTmpBehind()
+        {
+            // A direct File.WriteAllText that crashes mid-write corrupts the ledger and Load silently
+            // discards all proof. Save must write to a .tmp sibling then File.Move it into place so a
+            // reader only ever sees either the old complete file or the new complete file, never a
+            // half-written one.
+            var ledger = new TweakLedger(_path);
+            ledger.Record(new LedgerEntry("gaming-stack", DateTimeOffset.UtcNow, true, 130.0, 88.0, 142.3, 96.1));
+
+            ledger.Save();
+
+            Assert.IsTrue(File.Exists(_path), "Save must produce the ledger file.");
+            Assert.IsFalse(File.Exists(_path + ".tmp"), "Save must not leave a .tmp file behind.");
+
+            var reloaded = TweakLedger.Load(_path);
+            Assert.AreEqual(1, reloaded.Entries.Count);
+            Assert.AreEqual("gaming-stack", reloaded.Entries[0].TweakId);
+            Assert.AreEqual(142.3, reloaded.Entries[0].AfterFps);
+        }
     }
 }

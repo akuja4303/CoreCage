@@ -47,6 +47,15 @@ public sealed class EngineOptimizeService : IOptimizeService
             .Select(e => new LedgerRowInfo(e.TweakId, e.Active, e.BaselineFps, e.BaselineOnePctLow, e.AfterFps, e.AfterOnePctLow))
             .ToList();
 
+    /// <summary>
+    /// The honest A/B shape: if Gaming Mode is already active when Prove It starts, that's not a clean
+    /// baseline -- revert first, bench (true tweaks-OFF), apply, bench (tweaks-ON). If it's NOT active,
+    /// same shape minus the pre-revert (it's already a clean baseline): bench (off), apply, bench (on).
+    /// Either way we end with tweaks ON -- there is no revert-afterward delegate, so the user is never
+    /// left de-tuned by hitting Prove it. (Previously this re-applied Gaming Mode without reverting
+    /// first, so both benches captured the tweaks-ON state and the reported delta was pure run-to-run
+    /// variance -- see review CRITICAL-1.)
+    /// </summary>
     public async Task<OptimizeResult> ProveItAsync(IProgress<string>? progress = null)
     {
         var pm = new PresentMonInterface();
@@ -62,11 +71,16 @@ public sealed class EngineOptimizeService : IOptimizeService
             return new OptimizeResult(false, "No running game found to benchmark -- launch your game, then hit Prove it.");
 
         string? captureError = null;
+        int benchCall = 0;
         Task<FrametimeStats> Bench()
         {
+            benchCall++;
+            string phase = benchCall == 1
+                ? $"Getting clean baseline (tweaks off) -- capturing {processName}..."
+                : $"Benchmarking with tweaks on -- capturing {processName}...";
             return Task.Run(() =>
             {
-                progress?.Report($"Capturing {processName}...");
+                progress?.Report(phase);
                 PresentMonResult result = pm.Capture(processName, seconds: 15);
                 if (result.Error != null) captureError ??= result.Error;
                 return result.Stats;
@@ -76,19 +90,27 @@ public sealed class EngineOptimizeService : IOptimizeService
         var gaming = ModeRegistry.Get("Gaming");
         async Task Apply()
         {
-            progress?.Report("Re-applying Gaming Mode for the after-capture...");
+            progress?.Report("Applying Gaming Mode for the on-capture...");
             if (gaming != null) await gaming.ApplyAsync(progress).ConfigureAwait(false);
+        }
+        async Task Revert()
+        {
+            progress?.Report("Reverting Gaming Mode to get a clean baseline...");
+            if (gaming != null) await gaming.RevertAsync(progress).ConfigureAwait(false);
         }
 
         try
         {
-            var runner = new AbBenchRunner(Bench, Apply);
-            (FrametimeStats before, FrametimeStats after) = await runner.RunAsync().ConfigureAwait(false);
+            bool wasActive = gaming?.IsActive ?? false;
+            (FrametimeStats before, FrametimeStats after) =
+                await RunProveItSequenceAsync(Bench, Apply, Revert, wasActive).ConfigureAwait(false);
 
             if (captureError != null || before.FrameCount == 0 || after.FrameCount == 0)
                 return new OptimizeResult(false, $"Benchmark capture failed: {captureError ?? "no frames captured -- is the game presenting, and is CoreCage elevated?"}");
 
-            RecordBenchmarkOnActiveTweaks(before, after);
+            var ledger = TweakLedger.Load(TweakLedger.DefaultPath());
+            RecordWholeStackBenchmark(ledger, before, after);
+            ledger.Save();
 
             double fpsDelta = after.AvgFps - before.AvgFps;
             double p1Delta = after.P1LowFps - before.P1LowFps;
@@ -99,6 +121,25 @@ public sealed class EngineOptimizeService : IOptimizeService
         {
             return new OptimizeResult(false, $"Prove it failed: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Pure orchestration for the "Prove it" A/B sequence -- no PresentMon, no ModeRegistry, no OS
+    /// mutation here, only the injected delegates, so this is directly unit-testable with fakes
+    /// (review CRITICAL-3). <paramref name="wasActive"/> is whether Gaming Mode was already active when
+    /// Prove It started: if so, <paramref name="revert"/> runs once, before the first bench, to capture
+    /// a true tweaks-off baseline; if not, the sequence is bench/apply/bench unchanged. Either shape
+    /// ends right after the second bench -- with tweaks applied -- and never calls revert again.
+    /// </summary>
+    internal static async Task<(FrametimeStats Before, FrametimeStats After)> RunProveItSequenceAsync(
+        Func<Task<FrametimeStats>> bench,
+        Func<Task> apply,
+        Func<Task> revert,
+        bool wasActive)
+    {
+        if (wasActive) await revert().ConfigureAwait(false);
+        var runner = new AbBenchRunner(bench, apply);
+        return await runner.RunAsync().ConfigureAwait(false);
     }
 
     /// <summary>The foreground game process, falling back to any other detected running game --
@@ -114,20 +155,21 @@ public sealed class EngineOptimizeService : IOptimizeService
         return null;
     }
 
-    private static void RecordBenchmarkOnActiveTweaks(FrametimeStats before, FrametimeStats after)
+    /// <summary>TweakId for the single whole-stack ledger row Prove It writes to.</summary>
+    internal const string WholeStackTweakId = "gaming-stack";
+
+    /// <summary>
+    /// Records the measured A/B on exactly ONE ledger row -- <see cref="WholeStackTweakId"/> -- rather
+    /// than copying the identical whole-stack delta onto every active per-tweak row. A single
+    /// whole-stack A/B cannot attribute causation to individual tweaks (review CRITICAL-2); the
+    /// individual step rows (gaming-pipeline / eac-polish / core-cage) are left untouched here -- they
+    /// keep whatever Active status GamingMode gave them, and the UI shows them as "measured as part of
+    /// whole stack" instead of a copied per-tweak number.
+    /// </summary>
+    internal static void RecordWholeStackBenchmark(TweakLedger ledger, FrametimeStats before, FrametimeStats after)
     {
-        var ledger = TweakLedger.Load(TweakLedger.DefaultPath());
-        foreach (var entry in ledger.Entries.Where(e => e.Active).ToList())
-        {
-            ledger.Record(entry with
-            {
-                BaselineFps = before.AvgFps,
-                BaselineOnePctLow = before.P1LowFps,
-                AfterFps = after.AvgFps,
-                AfterOnePctLow = after.P1LowFps,
-            });
-        }
-        ledger.Save();
+        ledger.Record(new LedgerEntry(WholeStackTweakId, DateTimeOffset.Now, true,
+            before.AvgFps, before.P1LowFps, after.AvgFps, after.P1LowFps));
     }
 
     private static string Signed(double v) => (v >= 0 ? "+" : "") + v.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);

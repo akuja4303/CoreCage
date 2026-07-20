@@ -54,18 +54,24 @@ namespace CoreCage.Core.Ledger
         }
 
         /// <summary>Writes the current entries to the injected path. Never throws — a failed save is
-        /// logged, not fatal to whatever mode-apply/revert/benchmark flow triggered it.</summary>
+        /// logged, not fatal to whatever mode-apply/revert/benchmark flow triggered it. Atomic: writes
+        /// to a "<path>.tmp" sibling first, then <see cref="File.Move(string, string, bool)"/>s it into
+        /// place, so a crash mid-write never leaves a half-written ledger.json for Load to silently
+        /// discard (Load treats a corrupted file the same as an empty one).</summary>
         public void Save()
         {
+            string tmpPath = _path + ".tmp";
             try
             {
                 string? dir = Path.GetDirectoryName(_path);
                 if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-                File.WriteAllText(_path, JsonConvert.SerializeObject(_entries, Formatting.Indented));
+                File.WriteAllText(tmpPath, JsonConvert.SerializeObject(_entries, Formatting.Indented));
+                File.Move(tmpPath, _path, overwrite: true);
             }
             catch (Exception ex)
             {
                 Logger.LogError("TweakLedger.Save failed", ex);
+                try { if (File.Exists(tmpPath)) File.Delete(tmpPath); } catch { /* best-effort cleanup */ }
             }
         }
 

@@ -201,10 +201,17 @@ public sealed class OptimizeViewModel : INotifyPropertyChanged
     private void RefreshLedgerRows()
     {
         LedgerRows.Clear();
-        foreach (var row in _svc.ReadLedgerRows())
-            LedgerRows.Add(new LedgerRowViewModel(LedgerDisplayName(row.TweakId), row.Active, LedgerDeltaText(row)));
+        var rows = _svc.ReadLedgerRows();
+        bool wholeStackMeasured = rows.Any(r => r.TweakId == WholeStackTweakId && IsFullyMeasured(r));
+        foreach (var row in rows)
+            LedgerRows.Add(new LedgerRowViewModel(LedgerDisplayName(row.TweakId), row.Active, LedgerDeltaText(row, wholeStackMeasured)));
         IsLedgerEmpty = LedgerRows.Count == 0;
     }
+
+    /// <summary>TweakId for the single whole-stack row Prove It records to (mirrors
+    /// <see cref="EngineOptimizeService.WholeStackTweakId"/> without pulling CoreCage.Core.Ledger into
+    /// the ViewModel).</summary>
+    internal const string WholeStackTweakId = "gaming-stack";
 
     /// <summary>Human name for a TweakId — pure, unit-testable without a service.</summary>
     internal static string LedgerDisplayName(string tweakId) => tweakId switch
@@ -213,18 +220,38 @@ public sealed class OptimizeViewModel : INotifyPropertyChanged
         "eac-polish" => "EAC-safe polish",
         "core-unpark" => "Core-unpark",
         "core-cage" => "Core Cage",
+        WholeStackTweakId => "Gaming Mode (whole stack)",
         _ => tweakId,
     };
 
-    /// <summary>"not yet benchmarked" until a Prove It run fills in the after numbers; otherwise the
-    /// measured delta, e.g. "FPS +12.3, 1% lows +8.1". Pure — unit-testable without a service.</summary>
-    internal static string LedgerDeltaText(LedgerRowInfo row)
+    /// <summary>
+    /// The whole-stack row (<see cref="WholeStackTweakId"/>) shows the real measured delta, e.g.
+    /// "FPS +12.3, 1% lows +8.1", once ALL FOUR benchmark fields are present (guarding every field,
+    /// not just Fps — a null 1%-low must never render as "+0.0" as if it were measured; review MINOR-5).
+    /// Every other (per-tweak step) row can never carry a delta of its own — a single whole-stack A/B
+    /// can't attribute causation to an individual tweak (review CRITICAL-2) — so an Active step row
+    /// shows "measured as part of whole stack" once the whole-stack row has numbers, and "not yet
+    /// benchmarked" otherwise. Pure — unit-testable without a service.
+    /// </summary>
+    internal static string LedgerDeltaText(LedgerRowInfo row, bool wholeStackMeasured)
     {
-        if (row.BaselineFps == null || row.AfterFps == null) return "not yet benchmarked";
-        double fpsDelta = row.AfterFps.Value - row.BaselineFps.Value;
-        double p1Delta = (row.AfterOnePctLow ?? 0) - (row.BaselineOnePctLow ?? 0);
-        return $"FPS {Signed(fpsDelta)}, 1% lows {Signed(p1Delta)}";
+        if (row.TweakId == WholeStackTweakId)
+        {
+            if (!IsFullyMeasured(row)) return "not yet benchmarked";
+            double fpsDelta = row.AfterFps!.Value - row.BaselineFps!.Value;
+            double p1Delta = row.AfterOnePctLow!.Value - row.BaselineOnePctLow!.Value;
+            return $"FPS {Signed(fpsDelta)}, 1% lows {Signed(p1Delta)}";
+        }
+
+        if (row.Active && wholeStackMeasured) return "measured as part of whole stack";
+        return "not yet benchmarked";
     }
+
+    /// <summary>All four benchmark fields must be non-null before a row's numbers are trusted as a real
+    /// measurement (review MINOR-5) — a row with, say, AfterFps but no BaselineOnePctLow is not fully
+    /// measured and must never render a delta.</summary>
+    private static bool IsFullyMeasured(LedgerRowInfo row) =>
+        row.BaselineFps != null && row.BaselineOnePctLow != null && row.AfterFps != null && row.AfterOnePctLow != null;
 
     private static string Signed(double v) => (v >= 0 ? "+" : "") + v.ToString("0.0", CultureInfo.InvariantCulture);
 

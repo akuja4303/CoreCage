@@ -159,20 +159,41 @@ public sealed class OptimizeViewModelTests
     }
 
     [TestMethod]
-    public void Ledger_rows_show_measured_delta_when_benchmarked()
+    public void WholeStack_row_shows_measured_delta_when_benchmarked()
     {
+        // CRITICAL-2 fix: the measured A/B lands on a single "gaming-stack" row, not copied onto every
+        // active per-tweak row -- a single whole-stack bench can't attribute causation per-tweak.
         var fake = new FakeOptimizeService
         {
-            LedgerRowsValue = { new LedgerRowInfo("gaming-pipeline", true, 130.0, 88.0, 142.3, 96.1) }
+            LedgerRowsValue = { new LedgerRowInfo("gaming-stack", true, 130.0, 88.0, 142.3, 96.1) }
         };
         var vm = new OptimizeViewModel(fake);
 
         Assert.IsFalse(vm.IsLedgerEmpty);
         var row = vm.LedgerRows.Single();
-        Assert.AreEqual("Gaming Mode++", row.DisplayName);
+        Assert.AreEqual("Gaming Mode (whole stack)", row.DisplayName);
         Assert.IsTrue(row.Active);
         StringAssert.Contains(row.DeltaText, "FPS +12.3");
         StringAssert.Contains(row.DeltaText, "1% lows +8.1");
+    }
+
+    [TestMethod]
+    public void Step_row_shows_measured_as_part_of_whole_stack_once_the_whole_stack_row_is_proven()
+    {
+        var fake = new FakeOptimizeService
+        {
+            LedgerRowsValue =
+            {
+                new LedgerRowInfo("gaming-stack", true, 130.0, 88.0, 142.3, 96.1),
+                new LedgerRowInfo("core-cage", true, null, null, null, null),
+            }
+        };
+        var vm = new OptimizeViewModel(fake);
+
+        var stepRow = vm.LedgerRows.Single(r => r.DisplayName == "Core Cage");
+        Assert.IsTrue(stepRow.Active, "step row keeps its Active status.");
+        Assert.AreEqual("measured as part of whole stack", stepRow.DeltaText,
+            "must never show a copied per-tweak delta -- a single A/B can't attribute causation.");
     }
 
     [TestMethod]
@@ -181,6 +202,20 @@ public sealed class OptimizeViewModelTests
         var fake = new FakeOptimizeService
         {
             LedgerRowsValue = { new LedgerRowInfo("core-cage", true, null, null, null, null) }
+        };
+        var vm = new OptimizeViewModel(fake);
+
+        Assert.AreEqual("not yet benchmarked", vm.LedgerRows.Single().DeltaText);
+    }
+
+    [TestMethod]
+    public void WholeStack_row_with_a_null_onepctlow_field_is_not_treated_as_measured()
+    {
+        // MINOR-5 fix: LedgerDeltaText must guard ALL FOUR benchmark fields, not just Fps -- a null 1%
+        // low must never render as "+0.0" as if it had actually been measured.
+        var fake = new FakeOptimizeService
+        {
+            LedgerRowsValue = { new LedgerRowInfo("gaming-stack", true, 130.0, null, 142.3, 96.1) }
         };
         var vm = new OptimizeViewModel(fake);
 
