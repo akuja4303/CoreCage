@@ -56,6 +56,8 @@ namespace CoreCage.Tests
 
             Assert.AreEqual(0, result.Errors.Count, "example-arc-raiders.json must parse cleanly: " +
                 string.Join("; ", result.Errors.Select(e => $"{e.FilePath}: {e.Message}")));
+            Assert.AreEqual(0, result.Warnings.Count, "example-arc-raiders.json must not regress into warnings: " +
+                string.Join("; ", result.Warnings.Select(w => $"{w.FilePath}: {w.Message}")));
 
             CommunityProfileEntry? entry = result.Profiles.FirstOrDefault(
                 e => e.Profile.ExeName.Equals("PioneerGame-Win64-Shipping.exe", StringComparison.OrdinalIgnoreCase));
@@ -90,6 +92,7 @@ namespace CoreCage.Tests
 
             Assert.AreEqual(1, result.Errors.Count);
             StringAssert.Contains(result.Errors[0].FilePath, "broken-game.json");
+            Assert.AreEqual(0, result.Warnings.Count);
         }
 
         [TestMethod]
@@ -148,6 +151,84 @@ namespace CoreCage.Tests
             Assert.AreEqual(0, entry.Tweaks.Count);
             Assert.AreEqual("", entry.Notes);
             Assert.IsNull(entry.SubmittedBenchmark);
+            Assert.AreEqual(0, result.Warnings.Count, "Omitted priority means 'unset', not a warning.");
+        }
+
+        // ── MINOR-1 / MINOR-2: tweaks[] and priority validated at load, non-fatally ─────────────
+        [TestMethod]
+        public void LoadDirectory_UnknownTweakId_AddsWarning_ButProfileStillLoads()
+        {
+            WriteFile("bad-tweak.json", @"{
+                ""exe"": ""badtweak.exe"",
+                ""tweaks"": [""gaming-stack"", ""totally-made-up-tweak""]
+            }");
+
+            CommunityProfileLoadResult result = CommunityProfileLoader.LoadDirectory(_tempDir);
+
+            Assert.AreEqual(0, result.Errors.Count, "an unknown tweak id must not be a hard error.");
+            Assert.AreEqual(1, result.Profiles.Count, "the profile must still load.");
+            Assert.AreEqual("badtweak.exe", result.Profiles[0].Profile.ExeName);
+
+            Assert.AreEqual(1, result.Warnings.Count);
+            StringAssert.Contains(result.Warnings[0].FilePath, "bad-tweak.json");
+            StringAssert.Contains(result.Warnings[0].Message, "totally-made-up-tweak");
+        }
+
+        [TestMethod]
+        public void LoadDirectory_UnknownPriority_AddsWarning_ButProfileStillLoads()
+        {
+            WriteFile("bad-priority.json", @"{
+                ""exe"": ""badpriority.exe"",
+                ""priority"": ""SuperDuperHigh""
+            }");
+
+            CommunityProfileLoadResult result = CommunityProfileLoader.LoadDirectory(_tempDir);
+
+            Assert.AreEqual(0, result.Errors.Count, "an unparsable priority must not be a hard error.");
+            Assert.AreEqual(1, result.Profiles.Count, "the profile must still load.");
+            Assert.AreEqual("SuperDuperHigh", result.Profiles[0].Profile.Priority, "the raw value is still carried through.");
+
+            Assert.AreEqual(1, result.Warnings.Count);
+            StringAssert.Contains(result.Warnings[0].FilePath, "bad-priority.json");
+            StringAssert.Contains(result.Warnings[0].Message, "SuperDuperHigh");
+        }
+
+        [TestMethod]
+        public void LoadDirectory_KnownPriorityCaseInsensitive_NoWarning()
+        {
+            WriteFile("ok-priority.json", @"{ ""exe"": ""okpriority.exe"", ""priority"": ""abovenormal"" }");
+
+            CommunityProfileLoadResult result = CommunityProfileLoader.LoadDirectory(_tempDir);
+
+            Assert.AreEqual(0, result.Warnings.Count, "priority parses case-insensitively as a ProcessPriorityClass.");
+        }
+
+        [TestMethod]
+        public void LoadDirectory_EmptyPriority_IsUnset_NotAWarning()
+        {
+            WriteFile("empty-priority.json", @"{ ""exe"": ""emptypriority.exe"", ""priority"": """" }");
+
+            CommunityProfileLoadResult result = CommunityProfileLoader.LoadDirectory(_tempDir);
+
+            Assert.AreEqual(0, result.Warnings.Count, "empty priority means 'unset', not invalid.");
+        }
+
+        [TestMethod]
+        public void LoadDirectory_FullyValidProfile_ProducesZeroWarnings()
+        {
+            WriteFile("all-good.json", @"{
+                ""game"": ""All Good"",
+                ""exe"": ""allgood.exe"",
+                ""reservedCores"": [0, 1],
+                ""priority"": ""High"",
+                ""tweaks"": [""gaming-stack""]
+            }");
+
+            CommunityProfileLoadResult result = CommunityProfileLoader.LoadDirectory(_tempDir);
+
+            Assert.AreEqual(0, result.Errors.Count);
+            Assert.AreEqual(0, result.Warnings.Count);
+            Assert.AreEqual(1, result.Profiles.Count);
         }
 
         // ── Auto-apply hookup: pure match function, no real game / no OS mutation ──────────────

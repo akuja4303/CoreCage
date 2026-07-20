@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
+using CoreCage.Core.Ledger;
 
 namespace CoreCage.Core.Profiles
 {
@@ -24,10 +26,18 @@ namespace CoreCage.Core.Profiles
     /// stop the rest of the directory from loading.</summary>
     public sealed record ProfileLoadError(string FilePath, string Message);
 
-    /// <summary>Result of loading a directory of community profiles: what loaded, and what didn't.</summary>
+    /// <summary>One non-fatal issue found in an otherwise-loadable file (e.g. an unrecognized tweak
+    /// id, or a `priority` that doesn't parse as a <see cref="ProcessPriorityClass"/>). Unlike
+    /// <see cref="ProfileLoadError"/>, a warning never blocks the profile from loading — it's a
+    /// "you should look at this" flag for the PR author/reviewer, not a hard failure.</summary>
+    public sealed record ProfileLoadWarning(string FilePath, string Message);
+
+    /// <summary>Result of loading a directory of community profiles: what loaded, what didn't, and
+    /// what loaded but looks suspicious (<see cref="Warnings"/>).</summary>
     public sealed record CommunityProfileLoadResult(
         IReadOnlyList<CommunityProfileEntry> Profiles,
-        IReadOnlyList<ProfileLoadError> Errors);
+        IReadOnlyList<ProfileLoadError> Errors,
+        IReadOnlyList<ProfileLoadWarning> Warnings);
 
     /// <summary>Wire shape of a single profiles\*.json submission. Mirrors profiles\SCHEMA.md
     /// exactly — kept private so a schema tweak here can't leak an unintended public JSON contract.</summary>
@@ -62,9 +72,10 @@ namespace CoreCage.Core.Profiles
         {
             var profiles = new List<CommunityProfileEntry>();
             var errors = new List<ProfileLoadError>();
+            var warnings = new List<ProfileLoadWarning>();
 
             if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
-                return new CommunityProfileLoadResult(profiles, errors);
+                return new CommunityProfileLoadResult(profiles, errors, warnings);
 
             foreach (var file in Directory.GetFiles(dir, "*.json").OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
             {
@@ -99,9 +110,31 @@ namespace CoreCage.Core.Profiles
                             dto.SubmittedBenchmark.OnePctLow,
                             dto.SubmittedBenchmark.Rig ?? "");
 
+                    var tweaks = dto.Tweaks ?? Array.Empty<string>();
+
+                    // MINOR-1: tweaks[] is informational (not auto-applied), but a typo'd id is
+                    // still worth flagging — non-fatal, the profile loads either way.
+                    foreach (string tweakId in tweaks)
+                    {
+                        if (!TweakIds.IsKnown(tweakId))
+                            warnings.Add(new ProfileLoadWarning(file,
+                                $"Unknown tweak id '{tweakId}' (not one of CoreCage.Core.Ledger.TweakIds: " +
+                                $"{string.Join(", ", TweakIds.All)})."));
+                    }
+
+                    // MINOR-2: priority is unset (allowed) when omitted/blank; otherwise it must
+                    // parse as a ProcessPriorityClass name, case-insensitively.
+                    if (!string.IsNullOrWhiteSpace(dto.Priority) &&
+                        !Enum.TryParse<ProcessPriorityClass>(dto.Priority, ignoreCase: true, out _))
+                    {
+                        warnings.Add(new ProfileLoadWarning(file,
+                            $"Unknown priority '{dto.Priority}' (expected one of: " +
+                            $"{string.Join(", ", Enum.GetNames(typeof(ProcessPriorityClass)))})."));
+                    }
+
                     profiles.Add(new CommunityProfileEntry(
                         profile,
-                        dto.Tweaks ?? Array.Empty<string>(),
+                        tweaks,
                         dto.Notes ?? "",
                         bench));
                 }
@@ -115,7 +148,7 @@ namespace CoreCage.Core.Profiles
                 }
             }
 
-            return new CommunityProfileLoadResult(profiles, errors);
+            return new CommunityProfileLoadResult(profiles, errors, warnings);
         }
     }
 
