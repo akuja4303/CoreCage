@@ -44,13 +44,30 @@ public sealed class ProfilesViewModel : INotifyPropertyChanged
     private bool _lastOk = true;
     public bool LastOk { get => _lastOk; private set => Set(ref _lastOk, value); }
 
+    private StatusKind _statusKind = StatusKind.Neutral;
+    /// <summary>Drives the status bar's brush+glyph (review IMPORTANT-1). The profile-count/empty-state
+    /// readout is purely informational (Neutral, no ✓/✗); a completed Apply/Delete is Success/Error
+    /// once it actually finishes.</summary>
+    public StatusKind StatusKind { get => _statusKind; private set => Set(ref _statusKind, value); }
+
+    /// <summary>Explicit user-driven refresh (RefreshCommand, construction): repopulates the list AND
+    /// sets the informational count/empty-state message — always <see cref="StatusKind.Neutral"/>.</summary>
     internal void Refresh()
+    {
+        RefreshList();
+        StatusMessage = Profiles.Count == 0 ? "No saved profiles yet." : $"{Profiles.Count} profile(s).";
+        StatusKind = StatusKind.Neutral;
+    }
+
+    /// <summary>Repopulates the list without touching StatusMessage/StatusKind — used after Apply/Delete
+    /// so the action's result (Success/Error) stays on screen instead of being immediately overwritten
+    /// by the informational "N profile(s)" readout.</summary>
+    private void RefreshList()
     {
         Profiles.Clear();
         foreach (var p in _svc.List()) Profiles.Add(p);
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasProfiles)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsEmpty)));
-        StatusMessage = Profiles.Count == 0 ? "No saved profiles yet." : $"{Profiles.Count} profile(s).";
     }
 
     internal Task ApplySelectedAsync()  => ActOnSelectedAsync(_svc.Apply, "Applied", "Apply");
@@ -59,18 +76,20 @@ public sealed class ProfilesViewModel : INotifyPropertyChanged
     private async Task ActOnSelectedAsync(Func<string, bool> action, string pastTense, string verb)
     {
         var target = Selected;
-        if (target == null) { LastOk = false; StatusMessage = $"Select a profile to {verb.ToLowerInvariant()}."; return; }
+        if (target == null) { LastOk = false; StatusKind = StatusKind.Error; StatusMessage = $"Select a profile to {verb.ToLowerInvariant()}."; return; }
 
         IsBusy = true;
         StatusMessage = $"{verb}ing {target.Name}…";
+        StatusKind = StatusKind.Neutral;
         try
         {
             bool ok = await Task.Run(() => action(target.Name)).ConfigureAwait(true);
             LastOk = ok;
+            StatusKind = ok ? StatusKind.Success : StatusKind.Error;
             StatusMessage = ok ? $"{pastTense} {target.Name}." : $"Could not {verb.ToLowerInvariant()} {target.Name}.";
         }
-        catch (Exception ex) { LastOk = false; StatusMessage = $"{verb} failed: {ex.Message}"; }
-        finally { IsBusy = false; Refresh(); }
+        catch (Exception ex) { LastOk = false; StatusKind = StatusKind.Error; StatusMessage = $"{verb} failed: {ex.Message}"; }
+        finally { IsBusy = false; RefreshList(); }
     }
 
     private bool Set<T>(ref T field, T value, [CallerMemberName] string? name = null)

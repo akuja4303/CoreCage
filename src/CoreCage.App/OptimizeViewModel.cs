@@ -98,6 +98,12 @@ public sealed class OptimizeViewModel : INotifyPropertyChanged
     private bool _lastOk = true;
     public bool LastOk { get => _lastOk; private set => Set(ref _lastOk, value); }
 
+    private StatusKind _statusKind = StatusKind.Neutral;
+    /// <summary>Drives the status bar's brush+glyph (review IMPORTANT-1). Neutral on construction
+    /// ("Pick a mode.") and while an action is running; Success/Error only once an action has actually
+    /// completed — a bool LastOk had no way to express "nothing happened yet".</summary>
+    public StatusKind StatusKind { get => _statusKind; private set => Set(ref _statusKind, value); }
+
     private bool _gamingIsActive;
     /// <summary>
     /// Whether Gaming Mode is currently active. <c>IModeModule.IsActive</c> does file I/O per read, so
@@ -176,16 +182,19 @@ public sealed class OptimizeViewModel : INotifyPropertyChanged
     {
         IsBusy = true;
         StatusMessage = $"Applying {label}…";
+        StatusKind = StatusKind.Neutral; // in progress — not a result yet, so no ✓/✗
         try
         {
             var progress = new Progress<string>(msg => StatusMessage = msg);
             var result = await Task.Run(() => action(progress)).ConfigureAwait(true);
             LastOk = result.Ok;
+            StatusKind = result.Ok ? StatusKind.Success : StatusKind.Error;
             StatusMessage = result.Message;
         }
         catch (Exception ex)
         {
             LastOk = false;
+            StatusKind = StatusKind.Error;
             StatusMessage = $"{label} failed: {ex.Message}";
         }
         finally

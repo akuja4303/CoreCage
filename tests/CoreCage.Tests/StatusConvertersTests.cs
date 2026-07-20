@@ -51,4 +51,62 @@ public sealed class StatusConvertersTests
         Assert.ThrowsException<NotSupportedException>(() =>
             converter.ConvertBack(null!, typeof(bool), null, System.Globalization.CultureInfo.InvariantCulture));
     }
+
+    // ------------------------------------------------------------------
+    // Three-state StatusKind converters (review IMPORTANT-1): Neutral must render as neither the
+    // check nor the cross glyph, and as a muted (not Good/Bad) brush, so an idle/informational status
+    // is never mistaken for a completed success or failure.
+    // ------------------------------------------------------------------
+
+    [TestMethod]
+    public void StatusKind_glyph_is_check_for_Success()
+    {
+        var converter = new StatusKindToGlyphConverter();
+        Assert.AreEqual("✓", converter.Convert(StatusKind.Success, typeof(string), null, System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [TestMethod]
+    public void StatusKind_glyph_is_cross_for_Error()
+    {
+        var converter = new StatusKindToGlyphConverter();
+        Assert.AreEqual("✗", converter.Convert(StatusKind.Error, typeof(string), null, System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [TestMethod]
+    public void StatusKind_glyph_is_neither_check_nor_cross_for_Neutral()
+    {
+        var converter = new StatusKindToGlyphConverter();
+        var glyph = converter.Convert(StatusKind.Neutral, typeof(string), null, System.Globalization.CultureInfo.InvariantCulture);
+        Assert.AreNotEqual("✓", glyph, "an idle/informational status must never show a false success checkmark");
+        Assert.AreNotEqual("✗", glyph, "an idle/informational status must never show a false failure cross");
+    }
+
+    [TestMethod]
+    public void StatusKind_glyph_treats_non_enum_input_as_Neutral()
+    {
+        var converter = new StatusKindToGlyphConverter();
+        var glyph = converter.Convert(null, typeof(string), null, System.Globalization.CultureInfo.InvariantCulture);
+        Assert.AreNotEqual("✓", glyph);
+        Assert.AreNotEqual("✗", glyph);
+    }
+
+    [TestMethod]
+    public void StatusKind_brush_converter_never_throws_without_a_live_Application()
+    {
+        var converter = new StatusKindToBrushConverter();
+        var success = converter.Convert(StatusKind.Success, typeof(object), null, System.Globalization.CultureInfo.InvariantCulture);
+        var error = converter.Convert(StatusKind.Error, typeof(object), null, System.Globalization.CultureInfo.InvariantCulture);
+        var neutral = converter.Convert(StatusKind.Neutral, typeof(object), null, System.Globalization.CultureInfo.InvariantCulture);
+        Assert.IsNull(success);
+        Assert.IsNull(error);
+        Assert.IsNull(neutral);
+    }
+
+    [TestMethod]
+    public void StatusKind_brush_converter_ConvertBack_is_not_supported()
+    {
+        var converter = new StatusKindToBrushConverter();
+        Assert.ThrowsException<NotSupportedException>(() =>
+            converter.ConvertBack(null!, typeof(StatusKind), null, System.Globalization.CultureInfo.InvariantCulture));
+    }
 }

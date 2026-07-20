@@ -30,6 +30,53 @@ public sealed class OptimizeViewModelTests
         Assert.IsTrue(vm.GamingIsActive, "GamingIsActive should refresh from the service after apply");
     }
 
+    // ------------------------------------------------------------------
+    // Three-state StatusKind (review IMPORTANT-1): a bool LastOk had no way to say "idle, nothing
+    // happened yet", so the default/cold-launch status rendered as a false green success. StatusKind
+    // must be Neutral by default and only flip to Success/Error once an action actually completes.
+    // ------------------------------------------------------------------
+
+    [TestMethod]
+    public void Default_status_is_Neutral_not_Success()
+    {
+        var vm = new OptimizeViewModel(new FakeOptimizeService());
+
+        Assert.AreEqual(StatusKind.Neutral, vm.StatusKind, "cold-launch 'Pick a mode.' is informational, not a success");
+    }
+
+    [TestMethod]
+    public async Task Successful_action_sets_StatusKind_Success()
+    {
+        var vm = new OptimizeViewModel(new FakeOptimizeService());
+
+        await vm.ApplyGamingAsync();
+
+        Assert.AreEqual(StatusKind.Success, vm.StatusKind);
+    }
+
+    [TestMethod]
+    public async Task Failed_action_sets_StatusKind_Error()
+    {
+        var fake = new FakeOptimizeService { ThrowOnGaming = true };
+        var vm = new OptimizeViewModel(fake);
+
+        await vm.ApplyGamingAsync();
+
+        Assert.AreEqual(StatusKind.Error, vm.StatusKind);
+    }
+
+    [TestMethod]
+    public async Task Explicit_service_failure_also_sets_StatusKind_Error()
+    {
+        var fake = new FakeOptimizeService { GamingResult = new(false, "Gaming Mode could not apply.") };
+        var vm = new OptimizeViewModel(fake);
+
+        await vm.ApplyGamingAsync();
+
+        Assert.AreEqual(StatusKind.Error, vm.StatusKind);
+        Assert.IsFalse(vm.LastOk);
+    }
+
     [TestMethod]
     public async Task Restore_calls_the_mode_module_revert()
     {

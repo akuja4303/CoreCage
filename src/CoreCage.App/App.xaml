@@ -8,6 +8,12 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
         <local:LastOkToBrushConverter x:Key="LastOkToBrush" />
         <local:LastOkToGlyphConverter x:Key="LastOkToGlyph" />
+        <!-- Three-state status (review IMPORTANT-1): status bars bind to these, not LastOk, so an
+             idle/informational message (cold launch, "no items yet") never renders as a false green
+             success. LastOk*/StatusKind* converters coexist — LastOk is still read by code that only
+             cares about raw ok/fail, but every status bar's brush+glyph must go through StatusKind. -->
+        <local:StatusKindToBrushConverter x:Key="StatusKindToBrush" />
+        <local:StatusKindToGlyphConverter x:Key="StatusKindToGlyph" />
 
         <!-- Palette (dark, WCAG-AA text on panels). Accent = cage-orange, the brand color.
              Measured contrast (WCAG relative-luminance formula, see task-8-report.md):
@@ -39,7 +45,13 @@
 
         <!-- 4px spacing grid: every Margin/Padding in the app is a multiple of 4. These scalar steps
              are for single-value contexts (Width/Height/RowDefinition); Margin/Padding thicknesses are
-             written inline but always snapped to this grid. -->
+             written inline but always snapped to this grid.
+             REVIEW ITEM-3 (these were defined but referenced nowhere): now wired into the Optimize page
+             (src/CoreCage.App/Views/OptimizePage.xaml) and the shared MainWindow rail chrome
+             (src/CoreCage.App/MainWindow.xaml) as a real, demonstrable — if partial — spacing system.
+             The rest of the app (Monitor/Tune/System/Processes/Profiles/Settings pages) still uses
+             inline literals snapped to this same 4px grid; not migrated in this pass to avoid a
+             150-attribute churn for no behavior change. -->
         <system:Double x:Key="Space1">4</system:Double>
         <system:Double x:Key="Space2">8</system:Double>
         <system:Double x:Key="Space3">12</system:Double>

@@ -12,7 +12,10 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="B" Background="{TemplateBinding Background}" CornerRadius="7"
-                                BorderThickness="2" BorderBrush="Transparent" Padding="16,8">
+                                BorderThickness="2" BorderBrush="Transparent">
+                            <Border.Padding>
+                                <Thickness Left="{StaticResource Space4}" Top="{StaticResource Space2}" Right="{StaticResource Space4}" Bottom="{StaticResource Space2}" />
+                            </Border.Padding>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -26,7 +29,13 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid Margin="32,28,32,28">
+    <!-- Spacing tokens (review ITEM-3): the app-wide 4px grid (Space1..Space8, App.xaml) is wired into
+         this page's own margins/padding below as a real, demonstrable (if partial) spacing system —
+         see the note on the Space* resources in App.xaml for scope. -->
+    <Grid>
+        <Grid.Margin>
+            <Thickness Left="{StaticResource Space8}" Top="{StaticResource Space7}" Right="{StaticResource Space8}" Bottom="{StaticResource Space7}" />
+        </Grid.Margin>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -38,18 +47,32 @@
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0" Text="Optimize" Style="{StaticResource H1}" />
-        <TextBlock Grid.Row="1" Margin="0,4,0,20" Foreground="{StaticResource TextLo}" FontSize="{StaticResource FontSizeBody}"
-                   Text="One click sets your whole rig for gaming. Restore puts everything back exactly as it was." />
+        <TextBlock Grid.Row="1" Foreground="{StaticResource TextLo}" FontSize="{StaticResource FontSizeBody}"
+                   Text="One click sets your whole rig for gaming. Restore puts everything back exactly as it was.">
+            <TextBlock.Margin>
+                <Thickness Top="{StaticResource Space1}" Bottom="{StaticResource Space5}" />
+            </TextBlock.Margin>
+        </TextBlock>
 
         <!-- Status / feedback for every action. Glyph + color together (not color alone) so
              success/failure reads for colorblind users too; the text message itself is unchanged. -->
-        <Border Grid.Row="2" Background="{StaticResource Panel}" CornerRadius="10" Padding="20,16" Margin="0,0,0,16">
+        <Border Grid.Row="2" Background="{StaticResource Panel}" CornerRadius="10">
+            <Border.Padding>
+                <Thickness Left="{StaticResource Space5}" Top="{StaticResource Space4}" Right="{StaticResource Space5}" Bottom="{StaticResource Space4}" />
+            </Border.Padding>
+            <Border.Margin>
+                <Thickness Bottom="{StaticResource Space4}" />
+            </Border.Margin>
             <StackPanel Orientation="Horizontal">
-                <TextBlock Text="{Binding LastOk, Converter={StaticResource LastOkToGlyph}}" VerticalAlignment="Center"
-                           Margin="0,0,12,0" FontSize="{StaticResource FontSizeBodyLg}" FontWeight="Bold"
-                           Foreground="{Binding LastOk, Converter={StaticResource LastOkToBrush}}" />
+                <TextBlock Text="{Binding StatusKind, Converter={StaticResource StatusKindToGlyph}}" VerticalAlignment="Center"
+                           FontSize="{StaticResource FontSizeBodyLg}" FontWeight="Bold"
+                           Foreground="{Binding StatusKind, Converter={StaticResource StatusKindToBrush}}">
+                    <TextBlock.Margin>
+                        <Thickness Right="{StaticResource Space3}" />
+                    </TextBlock.Margin>
+                </TextBlock>
                 <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center"
-                           Foreground="{Binding LastOk, Converter={StaticResource LastOkToBrush}}"
+                           Foreground="{Binding StatusKind, Converter={StaticResource StatusKindToBrush}}"
                            FontSize="{StaticResource FontSizeBodyLg}" TextWrapping="Wrap" />
                 <TextBlock Text="  · working…" VerticalAlignment="Center" Foreground="{StaticResource Accent}"
                            FontSize="{StaticResource FontSizeBody}" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
@@ -57,14 +80,23 @@
         </Border>
 
         <!-- Gaming Mode active/inactive readout: read once (on activation/after apply), never bound to a poll -->
-        <TextBlock Grid.Row="3" Margin="4,0,0,20" FontSize="{StaticResource FontSizeBody}" FontWeight="SemiBold"
+        <TextBlock Grid.Row="3" FontSize="{StaticResource FontSizeBody}" FontWeight="SemiBold"
                    Foreground="{StaticResource TextLo}">
+            <TextBlock.Margin>
+                <Thickness Left="{StaticResource Space1}" Bottom="{StaticResource Space5}" />
+            </TextBlock.Margin>
             <Run Text="Gaming Mode: " />
             <Run Text="{Binding GamingStatusText, Mode=OneWay}" />
         </TextBlock>
 
         <!-- Core Cage: reserve top cores for the game, cage background processes onto the rest. -->
-        <Border Grid.Row="4" Background="{StaticResource Panel}" CornerRadius="10" Padding="20,16" Margin="0,0,0,20">
+        <Border Grid.Row="4" Background="{StaticResource Panel}" CornerRadius="10">
+            <Border.Padding>
+                <Thickness Left="{StaticResource Space5}" Top="{StaticResource Space4}" Right="{StaticResource Space5}" Bottom="{StaticResource Space4}" />
+            </Border.Padding>
+            <Border.Margin>
+                <Thickness Bottom="{StaticResource Space5}" />
+            </Border.Margin>
             <StackPanel Orientation="Horizontal">
                 <CheckBox Content="Core Cage" VerticalAlignment="Center" FontSize="{StaticResource FontSizeBodyLg}"
                           Foreground="{StaticResource TextHi}"
@@ -72,8 +104,12 @@
                           IsEnabled="{Binding CanEditCoreCageSettings}"
                           AutomationProperties.Name="Core Cage enabled"
                           AutomationProperties.HelpText="Reserve top cores for the game and confine background processes to the rest" />
-                <TextBlock Text="Reserve cores:" VerticalAlignment="Center" Margin="20,0,8,0" FontSize="{StaticResource FontSizeBody}"
-                           Foreground="{StaticResource TextLo}" />
+                <TextBlock Text="Reserve cores:" VerticalAlignment="Center" FontSize="{StaticResource FontSizeBody}"
+                           Foreground="{StaticResource TextLo}">
+                    <TextBlock.Margin>
+                        <Thickness Left="{StaticResource Space5}" Right="{StaticResource Space2}" />
+                    </TextBlock.Margin>
+                </TextBlock>
                 <ComboBox Width="70" VerticalAlignment="Center"
                           ItemsSource="{Binding AvailableReservedCoreCounts}"
                           SelectedItem="{Binding CoreCageReservedCores}"
@@ -85,9 +121,18 @@
 
         <!-- Tweak Ledger: what's active + what it earned you. "Prove it" runs a real before/after
              PresentMon A/B benchmark against whatever's currently active. -->
-        <Border Grid.Row="5" Background="{StaticResource Panel}" CornerRadius="10" Padding="20,16" Margin="0,0,0,20">
+        <Border Grid.Row="5" Background="{StaticResource Panel}" CornerRadius="10">
+            <Border.Padding>
+                <Thickness Left="{StaticResource Space5}" Top="{StaticResource Space4}" Right="{StaticResource Space5}" Bottom="{StaticResource Space4}" />
+            </Border.Padding>
+            <Border.Margin>
+                <Thickness Bottom="{StaticResource Space5}" />
+            </Border.Margin>
             <StackPanel>
-                <Grid Margin="0,0,0,8">
+                <Grid>
+                    <Grid.Margin>
+                        <Thickness Bottom="{StaticResource Space2}" />
+                    </Grid.Margin>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
@@ -110,9 +155,18 @@
                               Visibility="{Binding HasLedgerRows, Converter={StaticResource BoolToVis}}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Grid Margin="0,4" Focusable="True" KeyboardNavigation.IsTabStop="True"
+                            <!-- Grid isn't a Control, so App.xaml's implicit Control FocusVisualStyle rule
+                                 doesn't reach it (same class of bug already fixed for CheckBox/ComboBox/
+                                 etc. — review IMPORTANT-2); FocusVisualStyle is a FrameworkElement property
+                                 though, so setting it explicitly here does give this focusable row a
+                                 visible keyboard focus ring. -->
+                            <Grid Focusable="True" KeyboardNavigation.IsTabStop="True"
+                                  FocusVisualStyle="{StaticResource FocusVisual}"
                                   AutomationProperties.Name="{Binding DisplayName}"
                                   AutomationProperties.HelpText="{Binding DeltaText}">
+                                <Grid.Margin>
+                                    <Thickness Top="{StaticResource Space1}" Bottom="{StaticResource Space1}" />
+                                </Grid.Margin>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="80" />
@@ -148,6 +202,9 @@
         <Grid Grid.Row="6" VerticalAlignment="Top">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
+                <!-- Width is GridLength, not the Double the Space* tokens are typed as (no implicit
+                     Double->GridLength conversion through a markup extension) — left as a literal,
+                     still on the 4px grid (Space4). -->
                 <ColumnDefinition Width="16" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>

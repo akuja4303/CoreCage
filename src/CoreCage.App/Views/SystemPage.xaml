@@ -48,10 +48,10 @@
         <!-- Status / feedback: glyph + color together (not color alone), text unchanged. -->
         <Border Grid.Row="4" Background="{StaticResource Panel}" CornerRadius="8" Padding="16,12" Margin="0,16,0,0">
             <StackPanel Orientation="Horizontal">
-                <TextBlock Text="{Binding LastOk, Converter={StaticResource LastOkToGlyph}}" VerticalAlignment="Center"
+                <TextBlock Text="{Binding StatusKind, Converter={StaticResource StatusKindToGlyph}}" VerticalAlignment="Center"
                            Margin="0,0,8,0" FontWeight="Bold" FontSize="{StaticResource FontSizeBody}"
-                           Foreground="{Binding LastOk, Converter={StaticResource LastOkToBrush}}" />
-                <TextBlock Text="{Binding StatusMessage}" Foreground="{Binding LastOk, Converter={StaticResource LastOkToBrush}}"
+                           Foreground="{Binding StatusKind, Converter={StaticResource StatusKindToBrush}}" />
+                <TextBlock Text="{Binding StatusMessage}" Foreground="{Binding StatusKind, Converter={StaticResource StatusKindToBrush}}"
                            FontSize="{StaticResource FontSizeBody}" TextWrapping="Wrap" />
             </StackPanel>
         </Border>

@@ -82,6 +82,12 @@ public sealed class TuneViewModel : INotifyPropertyChanged, IDisposable, IPollin
     private bool _lastOk = true;
     public bool LastOk { get => _lastOk; private set => Set(ref _lastOk, value); }
 
+    private StatusKind _statusKind = StatusKind.Neutral;
+    /// <summary>Drives the status bar's brush+glyph (review IMPORTANT-1). "Reading GPU…" / "GPU tuning
+    /// ready." / the no-GPU banner are all informational, not a success — Neutral. Success/Error only
+    /// once an Apply actually completes (and a silent driver no-op is Error, never a fake success).</summary>
+    public StatusKind StatusKind { get => _statusKind; private set => Set(ref _statusKind, value); }
+
     private bool CanApply() => GpuAvailable && !IsBusy;
 
     /// <summary>Reads the GPU once and refreshes the readout. Leaves the status message alone while a
@@ -96,6 +102,7 @@ public sealed class TuneViewModel : INotifyPropertyChanged, IDisposable, IPollin
         if (!r.Available)
         {
             StatusMessage = "No NVIDIA GPU detected — GPU tuning is unavailable on this rig.";
+            StatusKind = StatusKind.Neutral;
             CoreText = MemText = PowerText = TempText = PowerLimitText = CoreOffsetText = VibranceText = "—";
             return;
         }
@@ -115,6 +122,7 @@ public sealed class TuneViewModel : INotifyPropertyChanged, IDisposable, IPollin
             VibranceInput = r.Vibrance;
             _seeded = true;
             StatusMessage = "GPU tuning ready.";
+            StatusKind = StatusKind.Neutral;
         }
     }
 
@@ -126,10 +134,12 @@ public sealed class TuneViewModel : INotifyPropertyChanged, IDisposable, IPollin
     {
         IsBusy = true;
         StatusMessage = $"Applying {label}…";
+        StatusKind = StatusKind.Neutral;
         try
         {
             bool ok = await Task.Run(action).ConfigureAwait(true);
             LastOk = ok;
+            StatusKind = ok ? StatusKind.Success : StatusKind.Error;
             StatusMessage = ok
                 ? $"{label} — applied."
                 : $"{label} — no change (the driver reported failure or a silent no-op).";
@@ -137,6 +147,7 @@ public sealed class TuneViewModel : INotifyPropertyChanged, IDisposable, IPollin
         catch (Exception ex)
         {
             LastOk = false;
+            StatusKind = StatusKind.Error;
             StatusMessage = $"{label} failed: {ex.Message}";
         }
         finally

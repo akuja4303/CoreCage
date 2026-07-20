@@ -31,7 +31,12 @@
         <!-- Left navigation rail -->
         <Border Grid.Column="0" Background="{StaticResource Rail}">
             <DockPanel>
-                <StackPanel DockPanel.Dock="Top" Margin="20,24,20,16">
+                <!-- Spacing tokens (review ITEM-3): wired here as the shared window-chrome half of the
+                     partial spacing system (see the Space* note in App.xaml). -->
+                <StackPanel DockPanel.Dock="Top">
+                    <StackPanel.Margin>
+                        <Thickness Left="{StaticResource Space5}" Top="{StaticResource Space6}" Right="{StaticResource Space5}" Bottom="{StaticResource Space4}" />
+                    </StackPanel.Margin>
                     <TextBlock Text="CoreCage" Foreground="{StaticResource TextHi}" FontSize="{StaticResource FontSizeHeading}" FontWeight="Bold" />
                     <TextBlock Text="Gaming" Foreground="{StaticResource Accent}" FontSize="{StaticResource FontSizeCaption}" FontWeight="SemiBold" />
                 </StackPanel>

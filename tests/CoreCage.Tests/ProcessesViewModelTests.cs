@@ -26,6 +26,48 @@ public sealed class ProcessesViewModelTests
         StringAssert.Contains(vm.StatusMessage.ToLowerInvariant(), "no processes found");
     }
 
+    // ------------------------------------------------------------------
+    // Three-state StatusKind (review IMPORTANT-1): the empty/populated process-count readout is
+    // informational, not a completed action's outcome -- it must render Neutral (no ✓), never a false
+    // green success. A completed Kill flips to Success/Error.
+    // ------------------------------------------------------------------
+
+    [TestMethod]
+    public void Default_status_is_Neutral_not_Success()
+    {
+        var vm = new ProcessesViewModel(new FakeProcessService());
+        Assert.AreEqual(StatusKind.Neutral, vm.StatusKind, "the process-count readout is informational, not a success");
+    }
+
+    [TestMethod]
+    public void Empty_state_status_is_Neutral()
+    {
+        var vm = new ProcessesViewModel(new FakeProcessService { Procs = new() });
+        Assert.AreEqual(StatusKind.Neutral, vm.StatusKind, "'No processes found' is informational, not a failure or success");
+    }
+
+    [TestMethod]
+    public async Task Successful_kill_sets_StatusKind_Success()
+    {
+        var fake = new FakeProcessService();
+        var vm = new ProcessesViewModel(fake) { Selected = new CoreCage.App.Services.ProcInfo(1001, "game", 1600) };
+
+        await vm.KillSelectedAsync();
+
+        Assert.AreEqual(StatusKind.Success, vm.StatusKind);
+    }
+
+    [TestMethod]
+    public async Task Failed_kill_sets_StatusKind_Error()
+    {
+        var fake = new FakeProcessService { KillResult = false };
+        var vm = new ProcessesViewModel(fake) { Selected = new CoreCage.App.Services.ProcInfo(1001, "game", 1600) };
+
+        await vm.KillSelectedAsync();
+
+        Assert.AreEqual(StatusKind.Error, vm.StatusKind);
+    }
+
     [TestMethod]
     public async Task Kill_with_no_selection_is_a_safe_hint()
     {

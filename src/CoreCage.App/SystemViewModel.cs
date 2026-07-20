@@ -43,6 +43,12 @@ public sealed class SystemViewModel : INotifyPropertyChanged, IDisposable, IPoll
     private string _statusMessage = "System ready."; public string StatusMessage { get => _statusMessage; private set => Set(ref _statusMessage, value); }
     private bool _lastOk = true;         public bool LastOk { get => _lastOk; private set => Set(ref _lastOk, value); }
 
+    private StatusKind _statusKind = StatusKind.Neutral;
+    /// <summary>Drives the status bar's brush+glyph (review IMPORTANT-1). "System ready." on
+    /// construction is informational, not a success — Neutral. Success/Error only once a cleanup
+    /// action actually completes.</summary>
+    public StatusKind StatusKind { get => _statusKind; private set => Set(ref _statusKind, value); }
+
     private void Refresh()
     {
         if (IsBusy) return;
@@ -59,13 +65,15 @@ public sealed class SystemViewModel : INotifyPropertyChanged, IDisposable, IPoll
     {
         IsBusy = true;
         StatusMessage = $"{label}…";
+        StatusKind = StatusKind.Neutral;
         try
         {
             bool ok = await Task.Run(action).ConfigureAwait(true);
             LastOk = ok;
+            StatusKind = ok ? StatusKind.Success : StatusKind.Error;
             StatusMessage = ok ? successMsg : $"{label} failed.";
         }
-        catch (Exception ex) { LastOk = false; StatusMessage = $"{label} failed: {ex.Message}"; }
+        catch (Exception ex) { LastOk = false; StatusKind = StatusKind.Error; StatusMessage = $"{label} failed: {ex.Message}"; }
         finally { IsBusy = false; Refresh(); }
     }
 
