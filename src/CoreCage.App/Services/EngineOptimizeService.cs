@@ -129,15 +129,29 @@ public sealed class EngineOptimizeService : IOptimizeService
             // captured the tweaks-OFF machine and the user got a fabricated "Proved it: FPS ..." success
             // message. Now any step failure throws here and aborts the sequence honestly, before any
             // ledger row is written -- no numbers are ever recorded from a corrupted A/B.
-            string honestState = ex.Step == "apply"
-                ? " Gaming Mode is currently OFF -- hit Gaming Mode to re-apply."
-                : " Gaming Mode may still be partially active -- check the Gaming Mode status before retrying.";
-            return new OptimizeResult(false, $"Prove it aborted -- {ex.Step} failed: {ex.Message}.{honestState}");
+            return new OptimizeResult(false, BuildAbortMessage(ex.Step, ex.Message));
         }
         catch (Exception ex)
         {
             return new OptimizeResult(false, $"Prove it failed: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Pure message builder for the honest post-abort state (pre-publish cleanup, partial-apply
+    /// honesty): GamingMode.ApplyAsync/RevertAsync catch internally and report Success=false rather than
+    /// rolling back every real tweak they may have already applied mid-pipeline, so neither an "apply"
+    /// nor a "revert" step failure guarantees the rig ended up in the state its ModeResult describes.
+    /// The old apply-failure text flatly asserted "Gaming Mode is currently OFF", which was a guess, not
+    /// an observed fact -- hedged to match the revert-branch wording, which already avoided that
+    /// overclaim. No Process/ModeRegistry/PresentMon dependency -- unit-testable directly.
+    /// </summary>
+    internal static string BuildAbortMessage(string step, string exceptionMessage)
+    {
+        string honestState = step == "apply"
+            ? " Gaming Mode may be partially applied -- check status / hit Restore Everything to be safe."
+            : " Gaming Mode may still be partially active -- check the Gaming Mode status before retrying.";
+        return $"Prove it aborted -- {step} failed: {exceptionMessage}.{honestState}";
     }
 
     /// <summary>

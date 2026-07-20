@@ -167,9 +167,33 @@ namespace CoreCage.Core.Modes
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogError("GamingMode.ApplyAsync failed", ex);
-                    steps.Add("FAILED: " + ex.Message);
-                    return new ModeResult(false, "Gaming Mode apply failed: " + ex.Message, steps);
+                    // Partial-apply honesty (pre-publish cleanup): a mid-pipeline throw used to stop
+                    // here with SOME real tweaks already applied (whichever steps ran before the throw)
+                    // while nothing was ever called to persist that -- IsActive kept whatever value it
+                    // had before Apply started, so a fresh launch could read "OFF" while the rig was
+                    // still partially tweaked. Fall back to RestoreEverything.RestoreAll() (the Big Red
+                    // Button), same as RevertAsync's own fallback, so the real system and the persisted
+                    // flag both land on a single honest, fully-off state instead of an inconsistent one.
+                    Logger.LogError("GamingMode.ApplyAsync failed -- falling back to RestoreEverything", ex);
+                    steps.Add("FAILED: " + ex.Message + " -- falling back to full system restore");
+                    progress?.Report("An apply step failed; falling back to full system restore (Big Red Button)...");
+                    try
+                    {
+                        RestoreSummary summary = _restoreEverything();
+                        steps.Add("RestoreEverything: " + summary);
+                        DeactivateAllLedgerEntries();
+                        SaveLedger();
+                        SaveState(false);
+                        progress?.Report("Full system restore complete.");
+                        return new ModeResult(false,
+                            "Gaming Mode apply failed: " + ex.Message + " -- rolled back via full system restore.", steps);
+                    }
+                    catch (Exception fallbackEx)
+                    {
+                        Logger.LogError("GamingMode.ApplyAsync fallback RestoreEverything failed", fallbackEx);
+                        steps.Add("FALLBACK FAILED: " + fallbackEx.Message);
+                        return new ModeResult(false, "Gaming Mode apply failed: " + ex.Message, steps);
+                    }
                 }
             });
         }

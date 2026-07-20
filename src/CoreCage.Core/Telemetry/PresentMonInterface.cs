@@ -82,7 +82,7 @@ namespace CoreCage.Core.Telemetry
             if (!IsAvailable)
                 return new PresentMonResult { ProcessName = processName, Seconds = seconds, Error = $"PresentMon.exe not found (looked in {string.Join("; ", DefaultExeCandidates)})." };
 
-            string csv = Path.Combine(Path.GetTempPath(), $"rigopt_pm_{Guid.NewGuid():N}.csv");
+            string csv = Path.Combine(Path.GetTempPath(), $"corecage_pm_{Guid.NewGuid():N}.csv");
             try
             {
                 var psi = new ProcessStartInfo

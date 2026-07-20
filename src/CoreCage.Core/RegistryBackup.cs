@@ -111,7 +111,7 @@ namespace CoreCage.Core
 
         public static bool HasSnapshot(string label) => File.Exists(SnapshotPath(label));
 
-        /// <summary>Restores every snapshot whose label starts with <paramref name="prefix"/> (e.g. "rigopt-").
+        /// <summary>Restores every snapshot whose label starts with <paramref name="prefix"/> (e.g. "corecage-").
         /// Reads from <see cref="BackupDirectory"/> — the same dir Snapshot writes to. Returns the count
         /// of snapshots successfully restored. Best-effort; never throws.</summary>
         public static int RestoreAllWithPrefix(string prefix)

@@ -42,7 +42,7 @@ namespace CoreCage.Core.Detection
         // ── Stage 1: session intent (foreground window state) ────────────────
         /// <summary>Foreground executable file name, e.g. "cs2.exe". Case-insensitive.</summary>
         public string ForegroundExe { get; init; }
-        /// <summary>Foreground process display/base name, e.g. "Code", "NinjaTrader".</summary>
+        /// <summary>Foreground process display/base name, e.g. "Code", "Spotify".</summary>
         public string ForegroundProcessName { get; init; }
         /// <summary>True when the foreground window is exclusive or borderless fullscreen.</summary>
         public bool IsFullscreen { get; init; }

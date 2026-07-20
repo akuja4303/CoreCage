@@ -157,7 +157,7 @@ namespace CoreCage.Core.Detection
                 GetWindowThreadProcessId(hwnd, out uint pid);
                 if (pid == 0) return string.Empty;
                 using Process p = Process.GetProcessById((int)pid);
-                processName = p.ProcessName;          // base name, e.g. "Code", "NinjaTrader"
+                processName = p.ProcessName;          // base name, e.g. "Code", "Spotify"
                 return p.ProcessName + ".exe";        // exe form the classifier expects, e.g. "cs2.exe"
             }
             catch

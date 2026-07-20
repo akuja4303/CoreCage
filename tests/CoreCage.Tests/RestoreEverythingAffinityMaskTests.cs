@@ -38,5 +38,14 @@ namespace CoreCage.Tests
         {
             Assert.AreEqual(0xFFFFL, RestoreEverything.FullAffinityMask(16));
         }
+
+        [TestMethod]
+        public void FullAffinityMask_SixtyFourCores_IsAllBitsSet_NotZero()
+        {
+            // C# shifts a long by (count % 64), so 1L << 64 silently evaluates to 1L << 0 == 1,
+            // which would make the naive "(1L << processorCount) - 1" formula produce 0 -- an empty,
+            // invalid affinity mask -- for exactly the boundary a 64-logical-core machine hits.
+            Assert.AreEqual(-1L, RestoreEverything.FullAffinityMask(64), "64 cores must map to all 64 bits set (-1L), not 0.");
+        }
     }
 }

@@ -89,10 +89,10 @@ namespace CoreCage.Core
                 ok &= RunSilent("netsh", "int tcp set global rss=enabled");
                 ok &= RunSilent("netsh", "int tcp set global netdma=enabled");
                 ok &= RunSilent("netsh", "int tcp set global ecncapability=default");
-                // Remove ALL RigOpt-* QoS policies (covers msedge, PioneerGame, etc.) — best-effort,
+                // Remove ALL CoreCage-* QoS policies (covers browser and game processes, etc.) — best-effort,
                 // not part of the success gate.
                 RunSilent("powershell.exe",
-                    "-NoProfile -Command \"Get-NetQosPolicy | Where-Object Name -like 'RigOpt-*' | Remove-NetQosPolicy -Confirm:$false -ErrorAction SilentlyContinue\"");
+                    "-NoProfile -Command \"Get-NetQosPolicy | Where-Object Name -like 'CoreCage-*' | Remove-NetQosPolicy -Confirm:$false -ErrorAction SilentlyContinue\"");
                 summary.NetworkReset = ok;
             });
 
@@ -137,7 +137,7 @@ namespace CoreCage.Core
                 summary.AutoStartTasksRemoved = !taskNames.Any(ScheduledTaskExists);
             });
 
-            // 8. Restore any RegistryBackup snapshots labeled "rigopt-*"
+            // 8. Restore any RegistryBackup snapshots labeled "corecage-*"
             TryRun("RegistryBackup snapshots -> restored", () =>
             {
                 int restored = RestoreAllCoreCageSnapshots();
@@ -286,8 +286,14 @@ namespace CoreCage.Core
 
         /// <summary>Pure full-core affinity mask for a machine with this many logical cores, as a bare
         /// long (e.g. 4 cores -&gt; 0b1111). No Process/OS dependency -- extracted so the mask math is
-        /// unit-testable without mutating any real process's affinity.</summary>
-        internal static long FullAffinityMask(int processorCount) => (1L << processorCount) - 1;
+        /// unit-testable without mutating any real process's affinity.
+        ///
+        /// processorCount == 64 is special-cased: C# masks a `long` shift amount mod 64, so
+        /// `1L &lt;&lt; 64` evaluates to `1L &lt;&lt; 0` == 1, which would make `(1L &lt;&lt; 64) - 1` come out as
+        /// 0 -- an invalid (empty) affinity mask -- instead of all 64 bits set. -1L (all bits set) is
+        /// the correct full mask for a 64-core machine.</summary>
+        internal static long FullAffinityMask(int processorCount) =>
+            processorCount >= 64 ? -1L : (1L << processorCount) - 1;
 
         /// <summary>Sets ProcessorAffinity back to the full-core mask for every process still running.
         /// Same per-process try/catch skip-on-denied pattern as <see cref="ResetAllProcessPriorities"/> --
@@ -316,13 +322,13 @@ namespace CoreCage.Core
             return n;
         }
 
-        // Restores every "rigopt-*" snapshot (notably the snapshot-before-write capture of the user's
+        // Restores every "corecage-*" snapshot (notably the snapshot-before-write capture of the user's
         // TRUE original registry values — RegistryTweakManifest.SnapshotLabel). Delegates to
         // RegistryBackup so it reads from the SAME directory Snapshot writes to. The previous local
         // copy looked in "CoreCage\RegistryBackup" while snapshots are saved under
         // "CoreCage\Backups", so it silently restored nothing.
         private static int RestoreAllCoreCageSnapshots()
-            => RegistryBackup.RestoreAllWithPrefix("rigopt-");
+            => RegistryBackup.RestoreAllWithPrefix("corecage-");
     }
 
     /// <summary>Summary of what RestoreEverything did, for user-facing reporting.</summary>

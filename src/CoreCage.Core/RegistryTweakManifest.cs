@@ -17,8 +17,8 @@ namespace CoreCage.Core
     /// </summary>
     public static class RegistryTweakManifest
     {
-        /// <summary>Snapshot label. Must start with "rigopt-" so the Big Red Button's prefix sweep finds it.</summary>
-        public const string SnapshotLabel = "rigopt-registry-tweaks";
+        /// <summary>Snapshot label. Must start with "corecage-" so the Big Red Button's prefix sweep finds it.</summary>
+        public const string SnapshotLabel = "corecage-registry-tweaks";
 
         private const string Mmcss        = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile";
         private const string MmcssGames   = Mmcss + @"\Tasks\Games";

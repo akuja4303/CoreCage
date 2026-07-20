@@ -33,7 +33,7 @@ namespace CoreCage.Core
         private const int MaxCores  = 100;  // CPMAXCORES=100
         private const int PerfFloor = 100;  // PROCTHROTTLEMIN=100 → no down-throttle while gaming
 
-        // Deliberately NOT prefixed "rigopt-": that prefix is swept by RegistryBackup.RestoreAllWithPrefix,
+        // Deliberately NOT prefixed "corecage-": that prefix is swept by RegistryBackup.RestoreAllWithPrefix,
         // which would try to parse this (different schema) as a registry snapshot. RestoreEverything calls
         // CoreUnpark.RestoreAll() explicitly instead.
         private const string StateFileName = "core-unpark-state.json";

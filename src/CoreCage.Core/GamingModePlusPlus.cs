@@ -430,14 +430,14 @@ namespace CoreCage.Core
         // ------------------------------------------------------------------
         // 5. QoS DSCP marking for PioneerGame (Arc Raiders) UDP traffic
         // ------------------------------------------------------------------
-        // Existing QoS policy in MainWindow covers msedge.exe (TradeSea). This
+        // Existing QoS policy in MainWindow covers msedge.exe (a browser process). This
         // extends the pattern to PioneerGame-Win64-Shipping.exe with DSCP CS6
         // (network-control class, highest priority on most consumer routers).
         public static void AddQosForGame(string exeName, int dscp = 48)
         {
             try
             {
-                string policyName = "RigOpt-" + exeName.Replace(".exe", "");
+                string policyName = "CoreCage-" + exeName.Replace(".exe", "");
                 // Remove first to be idempotent
                 PowershellExec("Remove-NetQosPolicy -Name '" + policyName.Replace("'", "''") + "' -Confirm:$false -ErrorAction SilentlyContinue");
                 // Add fresh
@@ -457,7 +457,7 @@ namespace CoreCage.Core
         {
             try
             {
-                string policyName = "RigOpt-" + exeName.Replace(".exe", "");
+                string policyName = "CoreCage-" + exeName.Replace(".exe", "");
                 PowershellExec("Remove-NetQosPolicy -Name '" + policyName.Replace("'", "''") + "' -Confirm:$false -ErrorAction SilentlyContinue");
                 Logger.Log("Gaming++ revert: QoS policy for " + exeName + " removed.");
             }

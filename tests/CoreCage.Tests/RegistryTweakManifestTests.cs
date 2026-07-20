@@ -70,10 +70,10 @@ namespace CoreCage.Tests
         }
 
         [TestMethod]
-        public void SnapshotLabel_HasRigoptPrefix_SoBigRedButtonFindsIt()
+        public void SnapshotLabel_HasCoreCagePrefix_SoBigRedButtonFindsIt()
         {
-            // RestoreEverything sweeps "rigopt-*"; a label without that prefix would never be restored.
-            StringAssert.StartsWith(RegistryTweakManifest.SnapshotLabel, "rigopt-");
+            // RestoreEverything sweeps "corecage-*"; a label without that prefix would never be restored.
+            StringAssert.StartsWith(RegistryTweakManifest.SnapshotLabel, "corecage-");
         }
 
         [TestMethod]
@@ -83,7 +83,7 @@ namespace CoreCage.Tests
             // exact contract the Big Red Button relies on: a changed value is restored to its original,
             // and a value that did NOT exist at snapshot time is deleted on restore.
             const string subKey = @"Software\CoreCage\__manifest_roundtrip_test";
-            const string label = "rigopt-unit-roundtrip";
+            const string label = "corecage-unit-roundtrip";
             try
             {
                 using (var k = Registry.CurrentUser.CreateSubKey(subKey, true))
@@ -106,7 +106,7 @@ namespace CoreCage.Tests
                     k.SetValue("Added", 1, RegistryValueKind.DWord);
                 }
 
-                int restored = RegistryBackup.RestoreAllWithPrefix("rigopt-unit-");
+                int restored = RegistryBackup.RestoreAllWithPrefix("corecage-unit-");
                 Assert.IsTrue(restored >= 1, "Prefix restore should have restored the snapshot");
 
                 using (var k = Registry.CurrentUser.OpenSubKey(subKey, false))
