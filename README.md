@@ -27,7 +27,7 @@ on yours.
 
 ## Features
 
-CoreCage is organized into seven sections:
+CoreCage is built around seven feature pillars (several of them live together on the one-click **Optimize** page):
 
 | Pillar | What it does |
 |---|---|
