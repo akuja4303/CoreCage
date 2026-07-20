@@ -1,0 +1,13 @@
+{
+  "game": "Arc Raiders",
+  "exe": "PioneerGame-Win64-Shipping.exe",
+  "reservedCores": [2, 3, 4, 5],
+  "priority": "High",
+  "tweaks": ["gaming-stack"],
+  "notes": "UE5, EAC-protected. TdrDelay 10s recommended (shader-compile spikes >2s). VSync OFF + re-toggle FSR Frame Gen after every launch. On a 6-core/12-thread part (Ryzen 5 5600G) the background cage on cores 0-1 is the measured win; this profile reserves cores 2-5 for the game itself.",
+  "submittedBenchmark": {
+    "fps": 150,
+    "onePctLow": 85,
+    "rig": "Ryzen 5 5600G / RTX 3060 / 64GB"
+  }
+}

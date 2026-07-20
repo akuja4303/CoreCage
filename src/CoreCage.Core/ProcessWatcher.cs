@@ -315,6 +315,15 @@ namespace CoreCage.Core
                 _activeGameProcessName = processBaseName;
                 (FullGamingModeAction ?? (n => BoostProcessPriority(n, ProcessPriorityClass.High))).Invoke(processBaseName);
 
+                // Community profile auto-apply hook (Task 7): if a community profile (loaded via
+                // CommunityProfileLoader.LoadDirectory + ProfileStore) matches rawName, apply it here,
+                // gated by CommunityProfileAutoApply.MatchForAutoApply(rawName, communityProfiles,
+                // modeCoordinator.Current) so it only fires when the confidence classifier agrees
+                // this is a Gaming session. Not wired live yet: ProcessWatcher is static/WMI-driven and
+                // doesn't hold a ModeDecision or the loaded community-profile list, so wiring it here
+                // for real needs those passed in (e.g. via a static setter, mirroring FullGamingModeAction)
+                // rather than a fragile ad-hoc integration. See CommunityProfileAutoApply for the pure,
+                // unit-tested matching logic.
                 OnGameDetected?.Invoke(rawName);
             }
             catch (Exception ex)
