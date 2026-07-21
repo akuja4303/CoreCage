@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Management;
+using System.Runtime.InteropServices;
+using System.Text;
 
 namespace CoreCage.Core
 {
@@ -68,7 +70,7 @@ namespace CoreCage.Core
             "halo_mcc",
             "rocketleague",
             "deadlock",
-            "helldivers",
+            "helldivers", "helldivers2",
             "playrustclient",
             "palworld",
             "splitgate",
@@ -76,12 +78,27 @@ namespace CoreCage.Core
             "leagueclient", "league of legends",
             // Arc Raiders (Embark Studios, UE5 — Steam; internal name PioneerGame)
             "arcraiders", "arc_raiders", "pioneergame",
+            // Current-rotation titles whose exe name won't hit any pattern above. The store-path
+            // and publisher signals catch the long tail; these are just the fast (no-IO) path for
+            // ones people actually run. Fragments are matched via Contains (see ClassifyFromSignals),
+            // so "gta5"→"gta5.exe", "b1-win64-shipping"→Black Myth: Wukong, etc.
+            "marvelrivals", "thefinals", "deltaforceclient", "grayzone",
+            "gta5", "gtav", "rdr2", "cyberpunk2077", "eldenring", "nightreign",
+            "bg3", "starfield", "wukong", "b1-win64-shipping",
+            "warframe", "pathofexile", "poe2", "lostark", "newworld",
+            "seaofthieves", "warhammer", "spacemarine", "darktide", "vermintide",
+            "monsterhunter", "mhwilds", "readyornot", "hunt", "dayz",
+            "starrail", "genshinimpact", "wutheringwaves", "zenlesszonezero",
+            "robloxplayerbeta", "fc25", "nba2k",
         };
 
         // ── Signal 2: Game store install paths ───────────────────────────────
         // Any EXE launched from these folders is almost certainly a game.
         private static readonly string[] GameStorePaths = {
-            @"\steam\steamapps\common\",
+            // Match Steam's invariant subpath, NOT "\steam\steamapps\" — games on a second drive
+            // live under a custom library folder (e.g. "D:\SteamLibrary\steamapps\common\") whose
+            // name is arbitrary. "\steamapps\common\" is present for every Steam install location.
+            @"\steamapps\common\",
             @"\epic games\",
             @"\gog galaxy\games\",
             @"\xboxgames\",
@@ -359,13 +376,19 @@ namespace CoreCage.Core
         {
             if (SystemProcesses.Contains(processName)) return ProcessCategory.Unknown;
 
+            // Fast path — name alone, no process access at all. Kept ahead of the IO gather so a
+            // well-known game is classified even if every handle to it is blocked.
             string lower = processName.ToLower();
-
-            // Signal 1 — name patterns (no disk I/O)
             if (GameNamePatterns.Any(p => lower.Contains(p)))
                 return ProcessCategory.Game;
 
-            // Signals 2, 3, 4 — need the running process
+            // Gather the remaining signals from the live process, then hand off to the pure
+            // classifier. CRITICAL: the exe path comes from QueryFullProcessImageName (see
+            // TryGetExecutablePath) rather than MainModule — MainModule enumerates the target's
+            // module list, which EAC/BattlEye/GameGuard block even for an elevated caller, so
+            // anti-cheat games used to fall through to the name list ONLY. The path + on-disk
+            // FileVersionInfo need no such access, so store-path and publisher detection now work
+            // on protected games too.
             try
             {
                 var procs = Process.GetProcessesByName(processName);
@@ -373,30 +396,29 @@ namespace CoreCage.Core
                 {
                     try
                     {
-                        string? exePath = proc.MainModule?.FileName;
-
-                        if (!string.IsNullOrEmpty(exePath))
+                        string? exePath = TryGetExecutablePath(proc.Id);
+                        if (string.IsNullOrEmpty(exePath))
                         {
-                            var fvi = FileVersionInfo.GetVersionInfo(exePath);
-                            string combined = $"{fvi.FileDescription} {fvi.CompanyName} {fvi.ProductName}".ToLower();
-
-                            // Signal 4 — publisher
-                            if (GamePublisherKeywords.Any(k => combined.Contains(k)))
-                                return ProcessCategory.Game;
-
-                            // Signal 2 — install path
-                            if (IsInGameStorePath(exePath))
-                                return ProcessCategory.Game;
-
-                            // Word-bounded so "display" no longer matches the "play" substring.
-                            if (!strict && (ContainsWord(combined, "game") || ContainsWord(combined, "play")))
-                                return ProcessCategory.Game;
+                            try { exePath = proc.MainModule?.FileName; } catch { /* blocked — path stays null */ }
                         }
 
-                        // Signal 3 — graphics API modules (catches any renderer). Skipped in
-                        // strict mode: nearly every modern GUI app loads d3d11/dxgi.
-                        if (!strict && UsesGraphicsApi(proc))
-                            return ProcessCategory.Game;
+                        string? versionInfoText = null;
+                        if (!string.IsNullOrEmpty(exePath))
+                        {
+                            try
+                            {
+                                var fvi = FileVersionInfo.GetVersionInfo(exePath);
+                                versionInfoText = $"{fvi.FileDescription} {fvi.CompanyName} {fvi.ProductName}".ToLower();
+                            }
+                            catch { /* unreadable version block — leave null */ }
+                        }
+
+                        // Signal 3 is the one input that still needs process access; a blocked
+                        // enumeration simply reports false and we lean on path/publisher instead.
+                        bool usesGraphics = !strict && UsesGraphicsApi(proc);
+
+                        var category = ClassifyFromSignals(processName, exePath, versionInfoText, usesGraphics, strict);
+                        if (category == ProcessCategory.Game) return ProcessCategory.Game;
                     }
                     catch { }
                     finally { proc.Dispose(); }
@@ -405,6 +427,93 @@ namespace CoreCage.Core
             catch { }
 
             return ProcessCategory.Unknown;
+        }
+
+        /// <summary>
+        /// Pure signal classifier — no OS/Process dependency, so it is fully unit-testable and its
+        /// rules stay locked by tests. All four detection signals in priority order:
+        ///   1. name pattern (fragment match), 2. publisher keyword (on-disk version info),
+        ///   3. game-store install path, 4. graphics API in use (non-strict only).
+        /// Inputs are pre-gathered by <see cref="ClassifyProcess"/>; any that could not be read
+        /// (blocked handle, no version block) arrive as null/false and are simply skipped — never throw.
+        /// </summary>
+        /// <param name="processName">Bare process name (no ".exe").</param>
+        /// <param name="exePath">Full exe path if resolvable, else null.</param>
+        /// <param name="versionInfoText">Lower-cased "description company product" from the file, else null.</param>
+        /// <param name="usesGraphicsApi">True if the process has a d3d/vulkan/opengl module loaded.</param>
+        /// <param name="strict">When true, the weak signals (generic "game"/"play" text, graphics API) are ignored.</param>
+        public static ProcessCategory ClassifyFromSignals(
+            string processName, string? exePath, string? versionInfoText, bool usesGraphicsApi, bool strict = false)
+        {
+            if (SystemProcesses.Contains(processName)) return ProcessCategory.Unknown;
+
+            string lower = (processName ?? string.Empty).ToLower();
+
+            // Signal 1 — name patterns (fragment match; "helldivers2" contains "helldivers").
+            if (GameNamePatterns.Any(p => lower.Contains(p)))
+                return ProcessCategory.Game;
+
+            string combined = versionInfoText ?? string.Empty;
+
+            // Signal 4 — publisher keyword in the on-disk version block.
+            if (combined.Length > 0 && GamePublisherKeywords.Any(k => combined.Contains(k)))
+                return ProcessCategory.Game;
+
+            // Signal 2 — game-store install path (works on anti-cheat games: path only, no handle).
+            if (!string.IsNullOrEmpty(exePath) && IsInGameStorePath(exePath))
+                return ProcessCategory.Game;
+
+            // Weak signals — only when not strict.
+            if (!strict)
+            {
+                // Word-bounded so "display" no longer matches the "play" substring.
+                if (combined.Length > 0 && (ContainsWord(combined, "game") || ContainsWord(combined, "play")))
+                    return ProcessCategory.Game;
+
+                // Signal 3 — a loaded renderer implies a 3D app (browsers/IDEs are on the denylist).
+                if (usesGraphicsApi)
+                    return ProcessCategory.Game;
+            }
+
+            return ProcessCategory.Unknown;
+        }
+
+        // ── Reliable exe-path resolution (anti-cheat-safe) ────────────────────
+        // QueryFullProcessImageName with PROCESS_QUERY_LIMITED_INFORMATION returns a protected
+        // process's image path where Process.MainModule (which needs PROCESS_QUERY_INFORMATION +
+        // module enumeration) throws AccessDenied on EAC/BattlEye/GameGuard titles. This is the
+        // single change that lets store-path/publisher detection see anti-cheat games.
+        private const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr OpenProcess(uint desiredAccess, bool inheritHandle, int processId);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool QueryFullProcessImageName(IntPtr hProcess, uint flags, StringBuilder exeName, ref uint size);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool CloseHandle(IntPtr hObject);
+
+        /// <summary>
+        /// Best-effort full image path for <paramref name="pid"/> via QueryFullProcessImageName.
+        /// Returns null when the process is gone or access is denied even for LIMITED info. Never throws.
+        /// </summary>
+        public static string? TryGetExecutablePath(int pid)
+        {
+            IntPtr handle = IntPtr.Zero;
+            try
+            {
+                handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+                if (handle == IntPtr.Zero) return null;
+
+                var sb = new StringBuilder(1024);
+                uint size = (uint)sb.Capacity;
+                return QueryFullProcessImageName(handle, 0, sb, ref size) ? sb.ToString() : null;
+            }
+            catch { return null; }
+            finally { if (handle != IntPtr.Zero) CloseHandle(handle); }
         }
 
         /// <summary>
