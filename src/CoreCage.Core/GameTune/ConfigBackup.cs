@@ -13,8 +13,15 @@ namespace CoreCage.Core.GameTune
 
         public string Backup(string gameId, string configPath)
         {
-            var stamp = DateTime.UtcNow.Ticks.ToString();
-            var dir = Path.Combine(_backupRoot, Sanitize(gameId), stamp);
+            var safeId = Sanitize(gameId);
+            var baseStamp = DateTime.UtcNow.Ticks.ToString();
+            var dir = Path.Combine(_backupRoot, safeId, baseStamp);
+            var n = 0;
+            while (Directory.Exists(dir))
+            {
+                n++;
+                dir = Path.Combine(_backupRoot, safeId, baseStamp + "_" + n);
+            }
             Directory.CreateDirectory(dir);
             var dest = Path.Combine(dir, Path.GetFileName(configPath));
             File.Copy(configPath, dest, overwrite: true);
@@ -34,7 +41,19 @@ namespace CoreCage.Core.GameTune
             return true;
         }
 
-        private static string Sanitize(string id) =>
-            string.Concat(id.Split(Path.GetInvalidFileNameChars()));
+        private static string Sanitize(string gameId)
+        {
+            if (string.IsNullOrWhiteSpace(gameId))
+                throw new ArgumentException("gameId must not be empty or whitespace.", nameof(gameId));
+
+            var invalid = Path.GetInvalidFileNameChars();
+            var chars = gameId.Select(c => invalid.Contains(c) ? '_' : c).ToArray();
+            var sanitized = new string(chars);
+
+            if (sanitized == "." || sanitized == "..")
+                throw new ArgumentException("gameId must not resolve to '.' or '..'.", nameof(gameId));
+
+            return sanitized;
+        }
     }
 }
