@@ -1,3 +1,5 @@
+using CoreCage.Core.GameTune;
+
 namespace CoreCage.Core.Profiles
 {
     /// <summary>Which CoreCage mode a game's profile should activate.</summary>
@@ -28,5 +30,10 @@ namespace CoreCage.Core.Profiles
         /// entries. Captured and validated today, but <b>not yet applied by anything at runtime</b>;
         /// like <see cref="ReservedCores"/>, it takes effect once per-profile application is wired up.</summary>
         public string Priority { get; set; } = "High";
+
+        /// <summary>Optional in-game graphics-settings context. Null when the game has no curated
+        /// preset (unknown game, or Unity title flagged guided-only). Runtime-relevant → lives on
+        /// GameProfile, loaded by CommunityProfileLoader.</summary>
+        public GraphicsBlock? Graphics { get; set; }
     }
 }
