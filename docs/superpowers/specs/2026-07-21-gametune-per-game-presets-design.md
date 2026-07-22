@@ -198,3 +198,22 @@ Both plug into the **same** adapter + safety layer — no rework.
 
 - Confirm exact config paths + key names per game at implementation time (verify against a real config dump for BF6/Helldivers — Unreal/Source are well-documented; Frostbite/Stingray need a live-file check).
 - Decide whether `guidedOnly` Unity games show a static list or are simply hidden in v1.
+
+---
+
+## Addendum (2026-07-21) — Sensitivity Sync
+
+**Ask:** input one reference sensitivity (e.g. **6.15**) and have GameTune write the *equivalent-feel* sensitivity into every game, so aim is identical everywhere.
+
+**Core math:** aim feel = distance to turn 360° (cm/360). With the same mouse+DPI across games, DPI cancels, so cross-game conversion reduces to the ratio of each game's **yaw** coefficient (degrees turned per count·sens-unit):
+
+- `targetSens = sourceSens × sourceYaw / targetYaw`
+- `cm360(sens, yaw, dpi) = (360 / (yaw × sens)) / (dpi / 2.54)`  *(display only)*
+
+**Data:** each game's profile gains an optional `sensitivity` block `{ "key": "<config key>", "yaw": <number> }` that rides on the existing `graphics` block's `configPath`/`format`/`safeRoots` (sens lives in the same config file). Source (TF2) yaw = **0.022** is well-known; Unreal/Frostbite/Stingray yaw values must be **verified against a real config/community source** before trusting (same honesty caveat as the config keys). A game with no `sensitivity` block is skipped by Sync.
+
+**Apply:** reuses the exact adapter + `GameTuneService` safety gate (game-closed, safe path, backup-first). Writing a sensitivity value is a normal config write — not anti-cheat-sensitive.
+
+**UI:** a "Sensitivity Sync" strip on the Game Presets page: reference-game dropdown, reference-sens input (default 6.15), DPI input (default 800, for the cm/360 readout only), **[Sync to all]** button, and per-game rows showing computed sens + cm/360 with the same state model (Applied ✓ / Game running / Not supported / Error).
+
+**Assumptions (correct later in UI if wrong):** DPI default 800; the reference game is whichever the user picks in the dropdown (no hard-coded reference). These don't affect cross-game *feel* (DPI cancels) — only the cm/360 display.
