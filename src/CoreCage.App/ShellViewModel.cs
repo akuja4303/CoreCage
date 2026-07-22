@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using CoreCage.App.ViewModels;
 
 namespace CoreCage.App;
 
@@ -38,37 +39,45 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
     public ShellViewModel()
         : this(new OptimizeViewModel(), new MonitorViewModel(), new TuneViewModel(),
-               new SystemViewModel(), new ProcessesViewModel(), new ProfilesViewModel(), new SettingsViewModel())
+               new SystemViewModel(), new ProcessesViewModel(), new ProfilesViewModel(),
+               // Built here (not constructor-injected in the general sense) because this is the ONE
+               // real production call site — GamePresetsViewModel wraps a real GameTuneService
+               // (filesystem backups + live process check) with no fakeable I*Service interface to
+               // inject a fake for outside tests, same as the other six groups' real services below.
+               Views.GamePresetsPage.BuildViewModel(),
+               new SettingsViewModel())
     {
     }
 
     public ShellViewModel(OptimizeViewModel optimize, MonitorViewModel monitor, TuneViewModel tune,
                           SystemViewModel system, ProcessesViewModel processes, ProfilesViewModel profiles,
-                          SettingsViewModel settings)
+                          GamePresetsViewModel gamePresets, SettingsViewModel settings)
     {
         _monitor = monitor;
         _tune = tune;
         _system = system;
         Sections = new ObservableCollection<NavSection>
         {
-            new("optimize",  "Optimize",  "⚡"),
-            new("monitor",   "Monitor",   "📊"),
-            new("tune",      "Tune",      "🎛"),
-            new("system",    "System",    "🧹"),
-            new("processes", "Processes", "📋"),
-            new("profiles",  "Profiles",  "💾"),
-            new("settings",  "Settings",  "⚙"),
+            new("optimize",     "Optimize",     "⚡"),
+            new("monitor",      "Monitor",      "📊"),
+            new("tune",         "Tune",         "🎛"),
+            new("system",       "System",       "🧹"),
+            new("processes",    "Processes",    "📋"),
+            new("profiles",     "Profiles",     "💾"),
+            new("gamepresets",  "Game Presets", "🎮"),
+            new("settings",     "Settings",     "⚙"),
         };
 
         _contentByKey = new Dictionary<string, object>
         {
-            ["optimize"]  = optimize,
-            ["monitor"]   = monitor,
-            ["tune"]      = tune,
-            ["system"]    = system,
-            ["processes"] = processes,
-            ["profiles"]  = profiles,
-            ["settings"]  = settings,
+            ["optimize"]    = optimize,
+            ["monitor"]     = monitor,
+            ["tune"]        = tune,
+            ["system"]      = system,
+            ["processes"]   = processes,
+            ["profiles"]    = profiles,
+            ["gamepresets"] = gamePresets,
+            ["settings"]    = settings,
         };
 
         // Each timer-backed VM starts polling in its own ctor; stop them all up front so only the

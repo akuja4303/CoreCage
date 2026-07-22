@@ -1,0 +1,16 @@
+{
+  "game": "Team Fortress 2",
+  "exe": "tf_win64.exe",
+  "graphics": {
+    "format": "source-cfg",
+    "configPath": "%PROGRAMFILES(X86)%\\Steam\\steamapps\\common\\Team Fortress 2\\tf\\cfg\\autoexec.cfg",
+    "safeRoots": ["%USERPROFILE%\\Documents"],
+    "competitivePreset": {
+      "mat_motion_blur_enabled": "0",
+      "r_shadowrendertotexture": "0",
+      "fps_max": "0"
+    },
+    "guidedOnly": true,
+    "postApplyNotes": "TF2 cfg lives inside the Steam install dir → guided-only (path fails the safe-root gate by design). Shown as a copy-paste list, not auto-written."
+  }
+}

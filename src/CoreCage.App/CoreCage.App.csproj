@@ -4,6 +4,16 @@
     <ProjectReference Include="..\CoreCage.Core\CoreCage.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Ship the community game profiles (profiles/*.json) next to the app so GamePresetsPage's
+         CommunityProfileLoader.LoadDirectory(AppContext.BaseDirectory + "profiles") finds them at
+         runtime, both under `dotnet run` and once published. -->
+    <None Include="..\..\profiles\*.json">
+      <Link>profiles\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>

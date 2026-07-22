@@ -50,6 +50,8 @@ namespace CoreCage.Core.Profiles
         public string[]? Tweaks { get; set; }
         public string? Notes { get; set; }
         public SubmittedBenchmarkDto? SubmittedBenchmark { get; set; }
+        public GraphicsBlockDto? Graphics { get; set; }
+        public SensitivityBlockDto? Sensitivity { get; set; }
     }
 
     file sealed class SubmittedBenchmarkDto
@@ -57,6 +59,22 @@ namespace CoreCage.Core.Profiles
         public double Fps { get; set; }
         public double OnePctLow { get; set; }
         public string? Rig { get; set; }
+    }
+
+    file sealed class GraphicsBlockDto
+    {
+        public string? Format { get; set; }
+        public string? ConfigPath { get; set; }
+        public string[]? SafeRoots { get; set; }
+        public Dictionary<string, string>? CompetitivePreset { get; set; }
+        public bool GuidedOnly { get; set; }
+        public string? PostApplyNotes { get; set; }
+    }
+
+    file sealed class SensitivityBlockDto
+    {
+        public string? Key { get; set; }
+        public double Yaw { get; set; }
     }
 
     /// <summary>
@@ -94,6 +112,22 @@ namespace CoreCage.Core.Profiles
                         continue;
                     }
 
+                    CoreCage.Core.GameTune.GraphicsBlock? graphics = null;
+                    if (dto.Graphics is { } gd && !string.IsNullOrWhiteSpace(gd.Format) && !string.IsNullOrWhiteSpace(gd.ConfigPath))
+                    {
+                        graphics = new CoreCage.Core.GameTune.GraphicsBlock(
+                            gd.Format!,
+                            gd.ConfigPath!,
+                            gd.SafeRoots ?? System.Array.Empty<string>(),
+                            gd.CompetitivePreset ?? new System.Collections.Generic.Dictionary<string, string>(),
+                            gd.GuidedOnly,
+                            gd.PostApplyNotes);
+                    }
+
+                    CoreCage.Core.GameTune.SensitivityBlock? sensitivity = null;
+                    if (dto.Sensitivity is { } sd && !string.IsNullOrWhiteSpace(sd.Key) && sd.Yaw > 0)
+                        sensitivity = new CoreCage.Core.GameTune.SensitivityBlock(sd.Key!, sd.Yaw);
+
                     var profile = new GameProfile
                     {
                         ExeName = dto.Exe,
@@ -101,6 +135,8 @@ namespace CoreCage.Core.Profiles
                         Mode = ProfileMode.Gaming,
                         ReservedCores = dto.ReservedCores ?? Array.Empty<int>(),
                         Priority = string.IsNullOrWhiteSpace(dto.Priority) ? "High" : dto.Priority,
+                        Graphics = graphics,
+                        Sensitivity = sensitivity,
                     };
 
                     SubmittedBenchmark? bench = dto.SubmittedBenchmark == null

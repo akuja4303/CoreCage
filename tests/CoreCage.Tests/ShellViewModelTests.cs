@@ -1,16 +1,31 @@
+using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using CoreCage.App;
+using CoreCage.App.ViewModels;
+using CoreCage.Core.GameTune;
 
 namespace CoreCage.Tests;
 
 /// <summary>
-/// The shell is the compact 7-group tree. These prove its navigation brain: it exposes all seven
-/// sections, defaults to Optimize, swaps the content VM when a section is selected, and that every
-/// group resolves to a real page (no placeholders left).
+/// The shell is the compact 8-group tree (Game Presets added alongside the original seven). These
+/// prove its navigation brain: it exposes all eight sections, defaults to Optimize, swaps the
+/// content VM when a section is selected, and that every group resolves to a real page (no
+/// placeholders left).
 /// </summary>
 [TestClass]
 public sealed class ShellViewModelTests
 {
+    // Fake-backed exactly like GamePresetsViewModelTests.Svc(): a real GameTuneService pointed at a
+    // throwaway temp backup dir with a stubbed "is the game running" check, plus an empty game list —
+    // enough to keep this a pure nav test with no real filesystem/process I/O touching CoreCage's
+    // real %LOCALAPPDATA% or Process.GetProcessesByName.
+    private static GamePresetsViewModel FakeGamePresets()
+    {
+        var backupDir = Path.Combine(Path.GetTempPath(), "shellvm_" + Path.GetRandomFileName());
+        var svc = new GameTuneService(new ConfigBackup(backupDir), _ => false);
+        return new GamePresetsViewModel(svc, System.Array.Empty<DetectedGame>());
+    }
+
     private static ShellViewModel NewShell() =>
         new(new OptimizeViewModel(new FakeOptimizeService()),
             new MonitorViewModel(new FakeMonitorService()),
@@ -18,12 +33,13 @@ public sealed class ShellViewModelTests
             new SystemViewModel(new FakeSystemService()),
             new ProcessesViewModel(new FakeProcessService()),
             new ProfilesViewModel(new FakeProfileService()),
+            FakeGamePresets(),
             new SettingsViewModel());
 
     [TestMethod]
-    public void Exposes_all_seven_sections()
+    public void Exposes_all_eight_sections()
     {
-        Assert.AreEqual(7, NewShell().Sections.Count);
+        Assert.AreEqual(8, NewShell().Sections.Count);
     }
 
     [TestMethod]
@@ -60,7 +76,26 @@ public sealed class ShellViewModelTests
     }
 
     [TestMethod]
-    public void All_seven_groups_resolve_to_a_real_page_no_placeholders_left()
+    public void Selecting_GamePresets_shows_the_real_gamepresets_vm()
+    {
+        var gamePresets = FakeGamePresets();
+        var shell = new ShellViewModel(
+            new OptimizeViewModel(new FakeOptimizeService()),
+            new MonitorViewModel(new FakeMonitorService()),
+            new TuneViewModel(new FakeTuneService()),
+            new SystemViewModel(new FakeSystemService()),
+            new ProcessesViewModel(new FakeProcessService()),
+            new ProfilesViewModel(new FakeProfileService()),
+            gamePresets,
+            new SettingsViewModel());
+
+        shell.SelectedSection = shell.SectionByKey("gamepresets");
+
+        Assert.AreSame(gamePresets, shell.CurrentContent);
+    }
+
+    [TestMethod]
+    public void All_eight_groups_resolve_to_a_real_page_no_placeholders_left()
     {
         var shell = NewShell();
         foreach (var s in shell.Sections)
