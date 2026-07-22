@@ -43,5 +43,17 @@ namespace CoreCage.Tests.GameTune
             Assert.AreEqual(GameTuneStatus.GameRunning, r.Status);
             StringAssert.Contains(File.ReadAllText(_cfg), "3.0");
         }
+
+        [TestMethod]
+        public void ApplySensitivity_GuidedOnly_ReturnsNotSupported()
+        {
+            var graphics = new GraphicsBlock(
+                "source-cfg", _cfg, new[] { Path.GetDirectoryName(_cfg)! },
+                new Dictionary<string, string>(), true, null);
+            var r = Svc(false).ApplySensitivity("tf2", "tf_win64.exe", graphics,
+                new SensitivityBlock("sensitivity", 0.022), 6.15);
+            Assert.AreEqual(GameTuneStatus.NotSupported, r.Status);
+            StringAssert.Contains(File.ReadAllText(_cfg), "3.0");
+        }
     }
 }

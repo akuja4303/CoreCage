@@ -48,6 +48,9 @@ namespace CoreCage.Core.GameTune
         public GameTuneResult ApplySensitivity(string gameId, string exeName, GraphicsBlock graphics,
             SensitivityBlock sens, double computedSens)
         {
+            if (graphics.GuidedOnly)
+                return R(GameTuneStatus.NotSupported, "No auto-apply for this game.");
+
             var gate = OpenGate(gameId, exeName, graphics, "Close the game to sync sensitivity.");
             if (!gate.Success) return gate.Failure!;
 

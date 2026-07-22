@@ -32,7 +32,7 @@ namespace CoreCage.Core.GameTune
             // ToDictionary would throw on the second duplicate. Later duplicates are ignored.
             var cur = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var s in current.Settings)
-                if (!cur.ContainsKey(s.Key)) cur[s.Key] = s.CurrentValue;
+                if (!cur.ContainsKey(s.Key)) cur[s.Key] = s.CurrentValue ?? string.Empty;
             var changes = new List<GraphicsChange>();
             foreach (var kv in preset)
             {

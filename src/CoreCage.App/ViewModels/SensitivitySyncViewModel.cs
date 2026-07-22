@@ -106,6 +106,7 @@ namespace CoreCage.App.ViewModels
             {
                 var g = row.Game;
                 if (g.Graphics is null || g.Sensitivity is null) { row.StatusText = "No config."; continue; }
+                if (g.Graphics.GuidedOnly) { row.StatusText = "Guided only — no auto-apply."; continue; }
                 var r = _svc.ApplySensitivity(g.GameId, g.ExeName, g.Graphics, g.Sensitivity, row.TargetSens);
                 row.StatusText = r.Message;
             }

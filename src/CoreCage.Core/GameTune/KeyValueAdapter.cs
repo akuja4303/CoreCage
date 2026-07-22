@@ -42,7 +42,7 @@ namespace CoreCage.Core.GameTune
             // Later duplicates are ignored when computing the current value.
             var cur = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var s in current.Settings)
-                if (!cur.ContainsKey(s.Key)) cur[s.Key] = s.CurrentValue;
+                if (!cur.ContainsKey(s.Key)) cur[s.Key] = s.CurrentValue ?? string.Empty;
             var changes = new List<GraphicsChange>();
             foreach (var kv in preset)
             {
