@@ -57,9 +57,19 @@ namespace CoreCage.Core.GameTune
             if (_isGameRunning(exeName))
                 return R(GameTuneStatus.GameRunning, "Close the game to restore settings.");
             var path = PathSafety.Expand(graphics.ConfigPath);
-            return _backup.TryRestoreNewest(gameId, path)
-                ? R(GameTuneStatus.Restored, "Restored your previous config.")
-                : R(GameTuneStatus.ConfigNotFound, "No backup found to restore.");
+            if (!PathSafety.IsSafe(path, graphics.SafeRoots))
+                return R(GameTuneStatus.UnsafePath, "Config path is outside the allowed safe roots.");
+
+            try
+            {
+                return _backup.TryRestoreNewest(gameId, path)
+                    ? R(GameTuneStatus.Restored, "Restored your previous config.")
+                    : R(GameTuneStatus.ConfigNotFound, "No backup found to restore.");
+            }
+            catch (Exception ex)
+            {
+                return R(GameTuneStatus.ParseError, "Could not restore: " + ex.Message);
+            }
         }
 
         private static GameTuneResult R(GameTuneStatus s, string msg) => new(s, msg, None, null);

@@ -58,6 +58,17 @@ namespace CoreCage.Tests.GameTune
                 new[] { @"C:\SomeOtherRoot" }, new Dictionary<string, string> { ["MotionBlur"] = "0" }, false, null);
             var r = Svc(running: false).Apply("arc", "PioneerGame.exe", unsafeBlock);
             Assert.AreEqual(GameTuneStatus.UnsafePath, r.Status);
+            StringAssert.Contains(File.ReadAllText(_cfg), "MotionBlur=1");
+        }
+
+        [TestMethod]
+        public void Restore_UnsafePath_Aborts()
+        {
+            var unsafeBlock = new GraphicsBlock("unreal-ini", _cfg,
+                new[] { @"C:\SomeOtherRoot" }, new Dictionary<string, string> { ["MotionBlur"] = "0" }, false, null);
+            var r = Svc(running: false).Restore("arc", "PioneerGame.exe", unsafeBlock);
+            Assert.AreEqual(GameTuneStatus.UnsafePath, r.Status);
+            StringAssert.Contains(File.ReadAllText(_cfg), "MotionBlur=1");
         }
 
         [TestMethod]
