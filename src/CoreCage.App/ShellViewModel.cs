@@ -51,24 +51,30 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         _system = system;
         Sections = new ObservableCollection<NavSection>
         {
-            new("optimize",  "Optimize",  "⚡"),
-            new("monitor",   "Monitor",   "📊"),
-            new("tune",      "Tune",      "🎛"),
-            new("system",    "System",    "🧹"),
-            new("processes", "Processes", "📋"),
-            new("profiles",  "Profiles",  "💾"),
-            new("settings",  "Settings",  "⚙"),
+            new("optimize",     "Optimize",     "⚡"),
+            new("monitor",      "Monitor",      "📊"),
+            new("tune",         "Tune",         "🎛"),
+            new("system",       "System",       "🧹"),
+            new("processes",    "Processes",    "📋"),
+            new("profiles",     "Profiles",     "💾"),
+            new("gamepresets",  "Game Presets", "🎮"),
+            new("settings",     "Settings",     "⚙"),
         };
 
         _contentByKey = new Dictionary<string, object>
         {
-            ["optimize"]  = optimize,
-            ["monitor"]   = monitor,
-            ["tune"]      = tune,
-            ["system"]    = system,
-            ["processes"] = processes,
-            ["profiles"]  = profiles,
-            ["settings"]  = settings,
+            ["optimize"]    = optimize,
+            ["monitor"]     = monitor,
+            ["tune"]        = tune,
+            ["system"]      = system,
+            ["processes"]   = processes,
+            ["profiles"]    = profiles,
+            // Not constructor-injected like the other seven groups: GamePresetsViewModel wraps a real
+            // GameTuneService (filesystem backups + live process check) rather than a fakeable
+            // I*Service interface (Task 8's design), so there's nothing a test would substitute here.
+            // Built by the page itself so the Shell doesn't need to know GameTune's construction details.
+            ["gamepresets"] = Views.GamePresetsPage.BuildViewModel(),
+            ["settings"]    = settings,
         };
 
         // Each timer-backed VM starts polling in its own ctor; stop them all up front so only the

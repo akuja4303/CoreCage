@@ -1,0 +1,154 @@
+<UserControl x:Class="CoreCage.App.Views.GamePresetsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <!-- Mirrors OptimizePage/ProcessesPage's page-local ToolBtn: same template, same focus-ring
+             trigger, same hover/disabled opacity language — only the key differs per page. -->
+        <Style x:Key="ToolBtn" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource TextHi}" />
+            <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="B" Background="{TemplateBinding Background}" CornerRadius="7"
+                                BorderThickness="2" BorderBrush="Transparent" Padding="16,8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Opacity" Value="0.88" /></Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="{StaticResource Focus}" /></Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="B" Property="Opacity" Value="0.35" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Backup-path line: only ever shown once a backup actually exists (after the first Apply). -->
+        <Style x:Key="BackupPathText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextLo}" />
+            <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Visibility" Value="Visible" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding BackupPath}" Value="{x:Null}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Progressive disclosure: the per-setting diff starts collapsed, and the Expander itself is
+             hidden entirely until there's something to show (no changes recorded yet). No custom
+             ControlTemplate — reuses default Expander chrome, themed via Foreground/Background only,
+             same "don't invent new style" posture as the rest of the app. -->
+        <Style x:Key="ChangesExpander" TargetType="Expander">
+            <Setter Property="Foreground" Value="{StaticResource TextHi}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+            <Setter Property="Margin" Value="0,4,0,0" />
+            <Setter Property="Visibility" Value="Visible" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding LastChanges.Count}" Value="0">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- List area vs. empty state: same visibility-by-DataTrigger approach used for the Expander
+             above (GamePresetsViewModel exposes IsEmpty, not an inverse HasCards, so a trigger avoids
+             adding a VM property purely for XAML's benefit). -->
+        <Style x:Key="CardsScroller" TargetType="ScrollViewer">
+            <Setter Property="Visibility" Value="Visible" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsEmpty}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="32,28,32,28">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Game Presets" Style="{StaticResource H1}" />
+        <TextBlock Grid.Row="1" Foreground="{StaticResource TextLo}" FontSize="{StaticResource FontSizeBody}"
+                   Margin="0,4,0,16" TextWrapping="Wrap"
+                   Text="Per-game max-FPS graphics presets. Close a game before applying — CoreCage always backs up the config first, so Restore puts it back exactly as it was." />
+
+        <!-- Empty state: never a silent blank panel (mirrors ProcessesPage). -->
+        <Border Grid.Row="2" Background="{StaticResource Panel}" CornerRadius="12" Padding="32"
+                Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                <TextBlock Text="No supported games detected" Foreground="{StaticResource TextHi}"
+                           FontSize="{StaticResource FontSizeHeading}" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                <TextBlock Foreground="{StaticResource TextLo}" FontSize="{StaticResource FontSizeBody}"
+                           Margin="0,8,0,0" TextAlignment="Center" TextWrapping="Wrap"
+                           Text="CoreCage looks for games with a shipped community profile. Add one under profiles/ or check back after a game update." />
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="2" Style="{StaticResource CardsScroller}" VerticalScrollBarVisibility="Auto">
+            <ItemsControl x:Name="CardsList" ItemsSource="{Binding Cards}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <!-- One game card. -->
+                        <Border Background="{StaticResource Panel}" CornerRadius="12" Padding="20" Margin="0,0,0,16">
+                            <StackPanel>
+                                <!-- Heading: game name (primary) + status (secondary), clear hierarchy. -->
+                                <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource TextHi}"
+                                           FontSize="{StaticResource FontSizeHeading}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource TextLo}"
+                                           FontSize="{StaticResource FontSizeBody}" Margin="0,4,0,12" TextWrapping="Wrap" />
+
+                                <!-- Primary action (Apply) then secondary (Restore) — same left-to-right
+                                     primary/secondary ordering as OptimizePage's Gaming/Restore pair. -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <Button Content="Apply Max-FPS" Style="{StaticResource ToolBtn}"
+                                            Background="{StaticResource Accent}"
+                                            IsEnabled="{Binding CanApply}" Click="Apply_Click"
+                                            AutomationProperties.Name="Apply Max-FPS"
+                                            AutomationProperties.HelpText="Write this game's max-FPS preset into its config file" />
+                                    <Button Content="Restore" Style="{StaticResource ToolBtn}"
+                                            Background="#FF0F766E" Margin="12,0,0,0"
+                                            IsEnabled="{Binding CanRestore}" Click="Restore_Click"
+                                            AutomationProperties.Name="Restore"
+                                            AutomationProperties.HelpText="Restore this game's config from the last backup" />
+                                </StackPanel>
+
+                                <!-- Feedback: where the backup landed, once one exists. -->
+                                <TextBlock Style="{StaticResource BackupPathText}"
+                                           Text="{Binding BackupPath, StringFormat=Backup saved: {0}}" />
+
+                                <!-- Progressive disclosure: the per-setting diff, collapsed by default. -->
+                                <Expander Header="What changed" IsExpanded="False" Style="{StaticResource ChangesExpander}">
+                                    <ItemsControl ItemsSource="{Binding LastChanges}" Margin="4,8,0,0">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock FontSize="{StaticResource FontSizeCaption}"
+                                                           Foreground="{StaticResource TextLo}" Margin="0,0,0,2">
+                                                    <Run Text="{Binding Key, Mode=OneWay}" FontWeight="SemiBold" />
+                                                    <Run Text=": " />
+                                                    <Run Text="{Binding From, Mode=OneWay}" />
+                                                    <Run Text=" -&gt; " />
+                                                    <Run Text="{Binding To, Mode=OneWay}" />
+                                                </TextBlock>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Expander>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

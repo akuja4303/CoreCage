@@ -4,9 +4,10 @@ using CoreCage.App;
 namespace CoreCage.Tests;
 
 /// <summary>
-/// The shell is the compact 7-group tree. These prove its navigation brain: it exposes all seven
-/// sections, defaults to Optimize, swaps the content VM when a section is selected, and that every
-/// group resolves to a real page (no placeholders left).
+/// The shell is the compact 8-group tree (Game Presets added alongside the original seven). These
+/// prove its navigation brain: it exposes all eight sections, defaults to Optimize, swaps the
+/// content VM when a section is selected, and that every group resolves to a real page (no
+/// placeholders left).
 /// </summary>
 [TestClass]
 public sealed class ShellViewModelTests
@@ -21,9 +22,9 @@ public sealed class ShellViewModelTests
             new SettingsViewModel());
 
     [TestMethod]
-    public void Exposes_all_seven_sections()
+    public void Exposes_all_eight_sections()
     {
-        Assert.AreEqual(7, NewShell().Sections.Count);
+        Assert.AreEqual(8, NewShell().Sections.Count);
     }
 
     [TestMethod]
@@ -60,7 +61,7 @@ public sealed class ShellViewModelTests
     }
 
     [TestMethod]
-    public void All_seven_groups_resolve_to_a_real_page_no_placeholders_left()
+    public void All_eight_groups_resolve_to_a_real_page_no_placeholders_left()
     {
         var shell = NewShell();
         foreach (var s in shell.Sections)
