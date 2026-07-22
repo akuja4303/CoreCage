@@ -1521,3 +1521,504 @@ git commit -m "feat(gametune): Game Presets WPF page + nav wiring"
 **Placeholder scan:** No TBD/TODO left as requirements. Two profile files (BF6, Helldivers) carry explicit "verify against a real dump" notes — these are genuine data-verification steps, not code placeholders, and the code that consumes them is complete.
 
 **Type consistency:** `GraphicsBlock`, `GraphicsReadResult`, `GraphicsApplyPlan`, `GraphicsChange`, `GraphicsSetting` (Task 1) are used unchanged in Tasks 4-8. `GameTuneStatus`/`GameTuneResult` (Task 6) map cleanly to `CardState` (Task 8). `IGraphicsConfigAdapter.Format`/`Read`/`Plan`/`Write` signatures match across Tasks 4, 5, 6. `AdapterRegistry.For` returns the interface used by the service. Consistent.
+
+---
+
+## Sensitivity Sync tasks (added 2026-07-21)
+
+Reuse the same adapter + safety gate to sync one reference mouse sensitivity (e.g. 6.15) into every game as an equivalent-feel value. Cross-game conversion is the ratio of each game's yaw coefficient (DPI cancels): `target = sourceSens * sourceYaw / targetYaw`.
+
+### Task 10: Sensitivity types + profile `sensitivity` block loading
+
+**Files:**
+- Modify: `src/CoreCage.Core/GameTune/GraphicsTypes.cs` (add `SensitivityBlock`)
+- Modify: `src/CoreCage.Core/Profiles/GameProfile.cs` (add `Sensitivity` property)
+- Modify: `src/CoreCage.Core/Profiles/CommunityProfileLoader.cs` (DTO + mapping)
+- Test: `tests/CoreCage.Tests/GameTune/SensitivityBlockLoadingTests.cs`
+
+**Interfaces:**
+- Produces: `record SensitivityBlock(string Key, double Yaw)`; `GameProfile.Sensitivity` (nullable `SensitivityBlock`).
+- The sensitivity value rides on the game's existing `graphics` block for `configPath`/`format`/`safeRoots` (sens lives in the same config file).
+
+- [ ] **Step 1: Write the failing test**
+
+```csharp
+using System.IO;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using CoreCage.Core.Profiles;
+
+namespace CoreCage.Tests.GameTune
+{
+    [TestClass]
+    public class SensitivityBlockLoadingTests
+    {
+        private static string WriteTemp(string json)
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "sens_" + Path.GetRandomFileName());
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(Path.Combine(dir, "game.json"), json);
+            return dir;
+        }
+
+        [TestMethod]
+        public void Load_ProfileWithSensitivity_PopulatesBlock()
+        {
+            var dir = WriteTemp("{ \"game\": \"TF2\", \"exe\": \"tf_win64.exe\", \"sensitivity\": { \"key\": \"sensitivity\", \"yaw\": 0.022 } }");
+            var result = CommunityProfileLoader.LoadDirectory(dir);
+            var s = result.Profiles[0].Profile.Sensitivity;
+            Assert.IsNotNull(s);
+            Assert.AreEqual("sensitivity", s!.Key);
+            Assert.AreEqual(0.022, s.Yaw, 1e-9);
+        }
+
+        [TestMethod]
+        public void Load_ProfileWithoutSensitivity_IsNull()
+        {
+            var dir = WriteTemp("{ \"game\": \"REPO\", \"exe\": \"REPO.exe\" }");
+            var result = CommunityProfileLoader.LoadDirectory(dir);
+            Assert.IsNull(result.Profiles[0].Profile.Sensitivity);
+        }
+
+        [TestMethod]
+        public void Load_SensitivityMissingKeyOrBadYaw_IsNull()
+        {
+            var dir = WriteTemp("{ \"game\": \"X\", \"exe\": \"x.exe\", \"sensitivity\": { \"key\": \"\", \"yaw\": 0 } }");
+            var result = CommunityProfileLoader.LoadDirectory(dir);
+            Assert.IsNull(result.Profiles[0].Profile.Sensitivity);
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `dotnet test tests/CoreCage.Tests --filter SensitivityBlockLoadingTests`
+Expected: FAIL — `SensitivityBlock` / `GameProfile.Sensitivity` not defined.
+
+- [ ] **Step 3: Add the type** — append to `src/CoreCage.Core/GameTune/GraphicsTypes.cs`:
+
+```csharp
+    /// <summary>Per-game mouse-sensitivity context: the config key holding sensitivity, and the
+    /// game's yaw coefficient (degrees turned per count.sens-unit) used to convert an equivalent-feel
+    /// value across games. Rides on the game's graphics block for config path/format/safe-roots.</summary>
+    public sealed record SensitivityBlock(string Key, double Yaw);
+```
+
+- [ ] **Step 4: Add `Sensitivity` to `GameProfile`** — add this property beside `Graphics` in `src/CoreCage.Core/Profiles/GameProfile.cs`:
+
+```csharp
+        /// <summary>Optional mouse-sensitivity context for cross-game Sensitivity Sync. Null when the
+        /// game has no known yaw coefficient.</summary>
+        public CoreCage.Core.GameTune.SensitivityBlock? Sensitivity { get; set; }
+```
+
+- [ ] **Step 5: Parse it in `CommunityProfileLoader`** — extend the DTO and mapping, mirroring the `graphics` block from Task 1:
+
+```csharp
+    // add to CommunityProfileDto:
+    public SensitivityBlockDto? Sensitivity { get; set; }
+
+    // add file-scoped DTO:
+    file sealed class SensitivityBlockDto
+    {
+        public string? Key { get; set; }
+        public double Yaw { get; set; }
+    }
+```
+
+In the GameProfile mapping site (next to the `graphics` mapping from Task 1), add — null unless `key` non-blank and `yaw > 0`:
+
+```csharp
+            CoreCage.Core.GameTune.SensitivityBlock? sensitivity = null;
+            if (dto.Sensitivity is { } sd && !string.IsNullOrWhiteSpace(sd.Key) && sd.Yaw > 0)
+                sensitivity = new CoreCage.Core.GameTune.SensitivityBlock(sd.Key!, sd.Yaw);
+            // then set on the returned GameProfile: Sensitivity = sensitivity
+```
+
+- [ ] **Step 6: Run tests to verify they pass**
+
+Run: `dotnet test tests/CoreCage.Tests --filter SensitivityBlockLoadingTests`
+Expected: PASS (3 passed).
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/CoreCage.Core/GameTune/GraphicsTypes.cs src/CoreCage.Core/Profiles/GameProfile.cs src/CoreCage.Core/Profiles/CommunityProfileLoader.cs tests/CoreCage.Tests/GameTune/SensitivityBlockLoadingTests.cs
+git commit -m "feat(gametune): sensitivity-block type + profile loading"
+```
+
+---
+
+### Task 11: SensitivityConverter (pure) + GameTuneService.ApplySensitivity
+
+**Files:**
+- Create: `src/CoreCage.Core/GameTune/SensitivityConverter.cs`
+- Modify: `src/CoreCage.Core/GameTune/GameTuneService.cs` (add `ApplySensitivity`; if `Apply`'s gate is inline, extract a shared private helper so the gate is not copy-pasted)
+- Test: `tests/CoreCage.Tests/GameTune/SensitivityConverterTests.cs`
+- Test: `tests/CoreCage.Tests/GameTune/ApplySensitivityTests.cs`
+
+**Interfaces:**
+- Consumes: `GraphicsBlock`, `SensitivityBlock` (Task 10), `GameTuneService`/`GameTuneResult`/`GameTuneStatus` (Task 6), `AdapterRegistry` (Task 5), `PathSafety`/`ConfigBackup`.
+- Produces:
+  - `static class SensitivityConverter { static double Convert(double sourceSens, double sourceYaw, double targetYaw); static double Cm360(double sens, double yaw, int dpi); }`
+  - `GameTuneResult GameTuneService.ApplySensitivity(string gameId, string exeName, GraphicsBlock graphics, SensitivityBlock sens, double computedSens)`
+
+- [ ] **Step 1: Write the failing tests**
+
+`SensitivityConverterTests.cs`:
+
+```csharp
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using CoreCage.Core.GameTune;
+
+namespace CoreCage.Tests.GameTune
+{
+    [TestClass]
+    public class SensitivityConverterTests
+    {
+        [TestMethod]
+        public void Convert_SameYaw_ReturnsSameSens()
+        {
+            Assert.AreEqual(6.15, SensitivityConverter.Convert(6.15, 0.022, 0.022), 1e-9);
+        }
+
+        [TestMethod]
+        public void Convert_HalfYaw_DoublesSens()
+        {
+            Assert.AreEqual(12.30, SensitivityConverter.Convert(6.15, 0.022, 0.011), 1e-9);
+        }
+
+        [TestMethod]
+        public void Cm360_KnownValue()
+        {
+            var cm = SensitivityConverter.Cm360(6.15, 0.022, 800);
+            Assert.AreEqual(8.45, cm, 0.05);
+        }
+    }
+}
+```
+
+`ApplySensitivityTests.cs`:
+
+```csharp
+using System.Collections.Generic;
+using System.IO;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using CoreCage.Core.GameTune;
+
+namespace CoreCage.Tests.GameTune
+{
+    [TestClass]
+    public class ApplySensitivityTests
+    {
+        private string _cfg = "", _bkRoot = "";
+
+        private GraphicsBlock Graphics() => new GraphicsBlock(
+            "source-cfg", _cfg, new[] { Path.GetDirectoryName(_cfg)! },
+            new Dictionary<string, string>(), false, null);
+
+        [TestInitialize]
+        public void Setup()
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "as_" + Path.GetRandomFileName());
+            Directory.CreateDirectory(dir);
+            _cfg = Path.Combine(dir, "autoexec.cfg");
+            File.WriteAllText(_cfg, "sensitivity \"3.0\"\n");
+            _bkRoot = Path.Combine(Path.GetTempPath(), "asbk_" + Path.GetRandomFileName());
+        }
+
+        private GameTuneService Svc(bool running) => new(new ConfigBackup(_bkRoot), _ => running);
+
+        [TestMethod]
+        public void ApplySensitivity_WritesComputedValue_BacksUp()
+        {
+            var r = Svc(false).ApplySensitivity("tf2", "tf_win64.exe", Graphics(),
+                new SensitivityBlock("sensitivity", 0.022), computedSens: 6.15);
+            Assert.AreEqual(GameTuneStatus.Applied, r.Status);
+            StringAssert.Contains(File.ReadAllText(_cfg), "sensitivity \"6.15\"");
+        }
+
+        [TestMethod]
+        public void ApplySensitivity_GameRunning_Aborts()
+        {
+            var r = Svc(true).ApplySensitivity("tf2", "tf_win64.exe", Graphics(),
+                new SensitivityBlock("sensitivity", 0.022), 6.15);
+            Assert.AreEqual(GameTuneStatus.GameRunning, r.Status);
+            StringAssert.Contains(File.ReadAllText(_cfg), "3.0");
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `dotnet test tests/CoreCage.Tests --filter "SensitivityConverterTests|ApplySensitivityTests"`
+Expected: FAIL — `SensitivityConverter` / `ApplySensitivity` not defined.
+
+- [ ] **Step 3: Implement the converter**
+
+`src/CoreCage.Core/GameTune/SensitivityConverter.cs`:
+
+```csharp
+namespace CoreCage.Core.GameTune
+{
+    /// <summary>Pure cross-game mouse-sensitivity math. Because the same mouse+DPI is used across
+    /// games, matching aim feel (cm/360) reduces to the ratio of yaw coefficients — DPI cancels.</summary>
+    public static class SensitivityConverter
+    {
+        /// <summary>Sensitivity in the target game that matches the source game's aim feel.</summary>
+        public static double Convert(double sourceSens, double sourceYaw, double targetYaw)
+            => sourceSens * sourceYaw / targetYaw;
+
+        /// <summary>Centimetres of mouse travel for a 360 turn (display metric only).</summary>
+        public static double Cm360(double sens, double yaw, int dpi)
+            => (360.0 / (yaw * sens)) / (dpi / 2.54);
+    }
+}
+```
+
+- [ ] **Step 4: Add `ApplySensitivity` to `GameTuneService`**
+
+In `src/CoreCage.Core/GameTune/GameTuneService.cs`, add the method below. It reuses the SAME safety gate as `Apply` (game-running check, path expand, `PathSafety.IsSafe`, `File.Exists`, backup-before-write). If that gate is inline in `Apply`, extract it into a shared private helper and call it from BOTH methods — do NOT copy-paste the gate block (a reviewer will flag verbatim duplication). Add `using System.Collections.Generic;` and `using System.Globalization;` if missing:
+
+```csharp
+        public GameTuneResult ApplySensitivity(string gameId, string exeName, GraphicsBlock graphics,
+            SensitivityBlock sens, double computedSens)
+        {
+            if (_isGameRunning(exeName))
+                return R(GameTuneStatus.GameRunning, "Close the game to sync sensitivity.");
+
+            var path = PathSafety.Expand(graphics.ConfigPath);
+            if (!PathSafety.IsSafe(path, graphics.SafeRoots))
+                return R(GameTuneStatus.UnsafePath, "Config path is outside the allowed safe roots.");
+            if (!File.Exists(path))
+                return R(GameTuneStatus.ConfigNotFound, "Launch the game once to generate its config.");
+
+            string backupPath;
+            try { backupPath = _backup.Backup(gameId, path); }
+            catch (Exception ex) { return R(GameTuneStatus.BackupFailed, "Backup failed: " + ex.Message); }
+
+            try
+            {
+                var adapter = AdapterRegistry.For(graphics.Format);
+                var preset = new Dictionary<string, string>
+                {
+                    [sens.Key] = computedSens.ToString(CultureInfo.InvariantCulture)
+                };
+                var plan = adapter.Plan(adapter.Read(path), preset);
+                adapter.Write(path, plan);
+                return new GameTuneResult(GameTuneStatus.Applied,
+                    "Synced sensitivity to " + computedSens.ToString(CultureInfo.InvariantCulture) + ".",
+                    plan.Changes, backupPath);
+            }
+            catch (Exception ex)
+            {
+                return R(GameTuneStatus.ParseError, "Could not sync sensitivity: " + ex.Message);
+            }
+        }
+```
+
+If you extract a shared gate helper, keep `Apply`'s behavior identical and all Task 6 tests (`GameTuneServiceTests`) passing unchanged.
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `dotnet test tests/CoreCage.Tests --filter "SensitivityConverterTests|ApplySensitivityTests|GameTuneServiceTests"`
+Expected: PASS (converter 3 + apply 2 + Task 6's 6 still green).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/CoreCage.Core/GameTune/SensitivityConverter.cs src/CoreCage.Core/GameTune/GameTuneService.cs tests/CoreCage.Tests/GameTune/SensitivityConverterTests.cs tests/CoreCage.Tests/GameTune/ApplySensitivityTests.cs
+git commit -m "feat(gametune): sensitivity converter + service ApplySensitivity"
+```
+
+---
+
+### Task 12: Sensitivity Sync ViewModel + UI strip
+
+**Files:**
+- Create: `src/CoreCage.App/ViewModels/SensitivitySyncViewModel.cs`
+- Modify: `src/CoreCage.App/Views/GamePresetsPage.xaml` (+ `.xaml.cs`) — add the Sensitivity Sync strip above the game cards
+- Modify: `src/CoreCage.App/ViewModels/GamePresetCardViewModel.cs` (extend `DetectedGame` with `Sensitivity`)
+- Test: `tests/CoreCage.Tests/GameTune/SensitivitySyncViewModelTests.cs`
+
+**Interfaces:**
+- Consumes: `SensitivityConverter`, `GameTuneService.ApplySensitivity` (Task 11); `DetectedGame` (Task 8, extended with `SensitivityBlock? Sensitivity`).
+- Produces:
+  - Extend `DetectedGame` -> `record DetectedGame(string GameId, string ExeName, string DisplayName, GraphicsBlock? Graphics, SensitivityBlock? Sensitivity)` (update Task 8 call sites/tests to pass the new arg — `null` where unset).
+  - `class SensitivitySyncViewModel { string ReferenceGameId; double ReferenceSens = 6.15; int Dpi = 800; IReadOnlyList<SensitivityRow> Rows; IReadOnlyList<DetectedGame> TunableGames; void Recompute(); void SyncAll(); }`
+  - `class SensitivityRow { string DisplayName; double TargetSens; double Cm360; string StatusText; }`
+
+- [ ] **Step 1: Write the failing test**
+
+```csharp
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using CoreCage.Core.GameTune;
+using CoreCage.App.ViewModels;
+
+namespace CoreCage.Tests.GameTune
+{
+    [TestClass]
+    public class SensitivitySyncViewModelTests
+    {
+        private static DetectedGame Game(string id, double yaw, string cfg) => new(
+            id, id + ".exe", id,
+            new GraphicsBlock("source-cfg", cfg, new[] { Path.GetDirectoryName(cfg)! },
+                new Dictionary<string, string>(), false, null),
+            new SensitivityBlock("sensitivity", yaw));
+
+        private static (GameTuneService svc, string cfgA, string cfgB) Env()
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "ssvm_" + Path.GetRandomFileName());
+            Directory.CreateDirectory(dir);
+            var a = Path.Combine(dir, "a.cfg"); File.WriteAllText(a, "sensitivity \"1\"\n");
+            var b = Path.Combine(dir, "b.cfg"); File.WriteAllText(b, "sensitivity \"1\"\n");
+            var bk = Path.Combine(Path.GetTempPath(), "ssvmbk_" + Path.GetRandomFileName());
+            return (new GameTuneService(new ConfigBackup(bk), _ => false), a, b);
+        }
+
+        [TestMethod]
+        public void Rows_ComputeTargetSens_FromReferenceGameYaw()
+        {
+            var (svc, a, b) = Env();
+            var games = new[] { Game("src", 0.022, a), Game("tgt", 0.011, b) };
+            var vm = new SensitivitySyncViewModel(svc, games) { ReferenceGameId = "src", ReferenceSens = 6.15 };
+            vm.Recompute();
+            var tgt = vm.Rows.First(r => r.DisplayName == "tgt");
+            Assert.AreEqual(12.30, tgt.TargetSens, 1e-6);
+        }
+
+        [TestMethod]
+        public void SyncAll_WritesEachGameConfig()
+        {
+            var (svc, a, b) = Env();
+            var games = new[] { Game("src", 0.022, a), Game("tgt", 0.011, b) };
+            var vm = new SensitivitySyncViewModel(svc, games) { ReferenceGameId = "src", ReferenceSens = 6.15 };
+            vm.Recompute();
+            vm.SyncAll();
+            StringAssert.Contains(File.ReadAllText(a), "sensitivity \"6.15\"");
+            StringAssert.Contains(File.ReadAllText(b), "sensitivity \"12.3\"");
+        }
+
+        [TestMethod]
+        public void Games_WithoutSensitivity_AreSkipped()
+        {
+            var (svc, a, _) = Env();
+            var noSens = new DetectedGame("x", "x.exe", "x",
+                new GraphicsBlock("source-cfg", a, new[] { Path.GetDirectoryName(a)! },
+                    new Dictionary<string, string>(), false, null), null);
+            var vm = new SensitivitySyncViewModel(svc, new[] { noSens }) { ReferenceGameId = "x" };
+            vm.Recompute();
+            Assert.AreEqual(0, vm.Rows.Count);
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `dotnet test tests/CoreCage.Tests --filter SensitivitySyncViewModelTests`
+Expected: FAIL — `SensitivitySyncViewModel` not defined; `DetectedGame` arity mismatch.
+
+- [ ] **Step 3: Extend `DetectedGame`** — in `src/CoreCage.App/ViewModels/GamePresetCardViewModel.cs`, change the record to add `SensitivityBlock? Sensitivity` as the final parameter, and update every existing construction (Task 8 tests + the page code-behind) to pass `null` where sensitivity is unset. Add `using CoreCage.Core.GameTune;` if needed.
+
+- [ ] **Step 4: Implement the ViewModel**
+
+`src/CoreCage.App/ViewModels/SensitivitySyncViewModel.cs`:
+
+```csharp
+using System.Collections.Generic;
+using System.Linq;
+using CoreCage.Core.GameTune;
+
+namespace CoreCage.App.ViewModels
+{
+    public sealed class SensitivityRow
+    {
+        public required string DisplayName { get; init; }
+        public required double TargetSens { get; init; }
+        public required double Cm360 { get; init; }
+        public string StatusText { get; set; } = "";
+        internal DetectedGame Game { get; init; } = null!;
+    }
+
+    /// <summary>Backs the Sensitivity Sync strip: given a reference game + sensitivity, computes the
+    /// equivalent-feel value (and cm/360) for every detected game that has a yaw coefficient, and
+    /// writes them through the GameTune safety gate on demand.</summary>
+    public sealed class SensitivitySyncViewModel
+    {
+        private readonly GameTuneService _svc;
+        private readonly IReadOnlyList<DetectedGame> _games;
+
+        public string ReferenceGameId { get; set; } = "";
+        public double ReferenceSens { get; set; } = 6.15;
+        public int Dpi { get; set; } = 800;
+        public IReadOnlyList<SensitivityRow> Rows { get; private set; } = new List<SensitivityRow>();
+        public IReadOnlyList<DetectedGame> TunableGames => _games.Where(g => g.Sensitivity is not null).ToList();
+
+        public SensitivitySyncViewModel(GameTuneService svc, IReadOnlyList<DetectedGame> games)
+        {
+            _svc = svc; _games = games;
+        }
+
+        public void Recompute()
+        {
+            var reference = _games.FirstOrDefault(g => g.GameId == ReferenceGameId);
+            var srcYaw = reference?.Sensitivity?.Yaw;
+            var rows = new List<SensitivityRow>();
+            foreach (var g in _games)
+            {
+                if (g.Sensitivity is null || srcYaw is null) continue;
+                var target = SensitivityConverter.Convert(ReferenceSens, srcYaw.Value, g.Sensitivity.Yaw);
+                rows.Add(new SensitivityRow
+                {
+                    DisplayName = g.DisplayName,
+                    TargetSens = target,
+                    Cm360 = SensitivityConverter.Cm360(target, g.Sensitivity.Yaw, Dpi),
+                    Game = g
+                });
+            }
+            Rows = rows;
+        }
+
+        public void SyncAll()
+        {
+            foreach (var row in Rows)
+            {
+                var g = row.Game;
+                if (g.Graphics is null || g.Sensitivity is null) { row.StatusText = "No config."; continue; }
+                var r = _svc.ApplySensitivity(g.GameId, g.ExeName, g.Graphics, g.Sensitivity, row.TargetSens);
+                row.StatusText = r.Message;
+            }
+        }
+    }
+}
+```
+
+- [ ] **Step 5: Add the UI strip**
+
+In `GamePresetsPage.xaml`, above the game-cards `ItemsControl`, add a "Sensitivity Sync" `GroupBox`/panel: a reference-game `ComboBox` (bound to `TunableGames`, `SelectedValuePath=GameId` -> `ReferenceGameId`), a sens `TextBox` (default 6.15), a DPI `TextBox` (default 800), a **[Sync to all]** button, and an `ItemsControl` bound to `Rows` showing `DisplayName`, `TargetSens` (2 dp), `Cm360` (`"{0:F1} cm/360"`), and `StatusText`. Apply the same UX Pro Max rules as Task 9 (type scale, AA contrast light+dark, focus rings, feedback via `StatusText`, empty state when `Rows` is empty). Wire the button to call `Recompute()` then `SyncAll()` in code-behind, then refresh the bound rows.
+
+- [ ] **Step 6: Build + run to verify visually**
+
+Run: `dotnet build src/CoreCage.App`, launch elevated. Enter 6.15, pick a reference game, Sync to all -> each game's row shows its target sens + cm/360; a running game's row shows the closed-game reason.
+
+- [ ] **Step 7: Run the full suite**
+
+Run: `dotnet test`
+Expected: all green (Task 8/9 tests updated for the new `DetectedGame` arg).
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add src/CoreCage.App/ViewModels/SensitivitySyncViewModel.cs src/CoreCage.App/Views/GamePresetsPage.xaml src/CoreCage.App/Views/GamePresetsPage.xaml.cs src/CoreCage.App/ViewModels/GamePresetCardViewModel.cs tests/CoreCage.Tests/GameTune/SensitivitySyncViewModelTests.cs
+git commit -m "feat(gametune): Sensitivity Sync viewmodel + UI strip"
+```
+
+### Sensitivity Sync self-review
+- Spec addendum covered: yaw-ratio conversion (Task 11), cm/360 display (Task 11/12), per-game `sensitivity` block (Task 10), reuse of adapter+gate (Task 11 `ApplySensitivity`), UI strip with reference/sens/DPI + state (Task 12).
+- Type consistency: `SensitivityBlock(Key, Yaw)` (Task 10) consumed unchanged in 11-12; `SensitivityConverter.Convert/Cm360` signatures match; `DetectedGame` gains a trailing `Sensitivity` arg — Task 12 Step 3 updates all Task 8 call sites.
+- Data-verification note: `battlefield-6`/`helldivers-2` yaw values and each game's sensitivity `key` need verification against a real config/community source before trusting (same caveat as the graphics keys). Ship TF2 (Source, yaw 0.022, key `sensitivity`) as the known-correct baseline; add a `sensitivity` block to the other profiles in a follow-up once verified.
