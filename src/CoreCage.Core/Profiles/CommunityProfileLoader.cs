@@ -51,6 +51,7 @@ namespace CoreCage.Core.Profiles
         public string? Notes { get; set; }
         public SubmittedBenchmarkDto? SubmittedBenchmark { get; set; }
         public GraphicsBlockDto? Graphics { get; set; }
+        public SensitivityBlockDto? Sensitivity { get; set; }
     }
 
     file sealed class SubmittedBenchmarkDto
@@ -68,6 +69,12 @@ namespace CoreCage.Core.Profiles
         public Dictionary<string, string>? CompetitivePreset { get; set; }
         public bool GuidedOnly { get; set; }
         public string? PostApplyNotes { get; set; }
+    }
+
+    file sealed class SensitivityBlockDto
+    {
+        public string? Key { get; set; }
+        public double Yaw { get; set; }
     }
 
     /// <summary>
@@ -117,6 +124,10 @@ namespace CoreCage.Core.Profiles
                             gd.PostApplyNotes);
                     }
 
+                    CoreCage.Core.GameTune.SensitivityBlock? sensitivity = null;
+                    if (dto.Sensitivity is { } sd && !string.IsNullOrWhiteSpace(sd.Key) && sd.Yaw > 0)
+                        sensitivity = new CoreCage.Core.GameTune.SensitivityBlock(sd.Key!, sd.Yaw);
+
                     var profile = new GameProfile
                     {
                         ExeName = dto.Exe,
@@ -125,6 +136,7 @@ namespace CoreCage.Core.Profiles
                         ReservedCores = dto.ReservedCores ?? Array.Empty<int>(),
                         Priority = string.IsNullOrWhiteSpace(dto.Priority) ? "High" : dto.Priority,
                         Graphics = graphics,
+                        Sensitivity = sensitivity,
                     };
 
                     SubmittedBenchmark? bench = dto.SubmittedBenchmark == null

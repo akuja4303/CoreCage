@@ -23,4 +23,9 @@ namespace CoreCage.Core.GameTune
 
     /// <summary>The diff between current config and the target preset — what Write will apply.</summary>
     public sealed record GraphicsApplyPlan(IReadOnlyList<GraphicsChange> Changes);
+
+    /// <summary>Per-game mouse-sensitivity context: the config key holding sensitivity, and the
+    /// game's yaw coefficient (degrees turned per count.sens-unit) used to convert an equivalent-feel
+    /// value across games. Rides on the game's graphics block for config path/format/safe-roots.</summary>
+    public sealed record SensitivityBlock(string Key, double Yaw);
 }

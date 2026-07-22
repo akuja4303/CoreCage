@@ -35,5 +35,9 @@ namespace CoreCage.Core.Profiles
         /// preset (unknown game, or Unity title flagged guided-only). Runtime-relevant → lives on
         /// GameProfile, loaded by CommunityProfileLoader.</summary>
         public GraphicsBlock? Graphics { get; set; }
+
+        /// <summary>Optional mouse-sensitivity context for cross-game Sensitivity Sync. Null when the
+        /// game has no known yaw coefficient.</summary>
+        public CoreCage.Core.GameTune.SensitivityBlock? Sensitivity { get; set; }
     }
 }
