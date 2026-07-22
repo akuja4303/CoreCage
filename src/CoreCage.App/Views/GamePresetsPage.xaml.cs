@@ -54,7 +54,8 @@ public partial class GamePresetsPage : UserControl
                 GameIdFor(e.Profile.ExeName),
                 e.Profile.ExeName,
                 e.Profile.DisplayName,
-                e.Profile.Graphics))
+                e.Profile.Graphics,
+                e.Profile.Sensitivity))
             .ToList();
 
         return new GamePresetsViewModel(service, games);
@@ -71,6 +72,20 @@ public partial class GamePresetsPage : UserControl
 
     private void Apply_Click(object sender, RoutedEventArgs e) => Run(sender, card => card.Apply());
     private void Restore_Click(object sender, RoutedEventArgs e) => Run(sender, card => card.Restore());
+
+    /// <summary>
+    /// Sensitivity Sync's [Sync to all]: recompute the rows from whatever reference game/sens/DPI the
+    /// user has entered, then write each through the safety gate. SensitivityRow raises
+    /// INotifyPropertyChanged for StatusText, so binding refresh after SyncAll() updates each row's
+    /// feedback in place — Recompute() only replaces the Rows collection when the inputs actually
+    /// change (i.e. right here, before the write), it does not run again after SyncAll().
+    /// </summary>
+    private void SyncAll_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not GamePresetsViewModel vm) return;
+        vm.Sensitivity.Recompute();
+        vm.Sensitivity.SyncAll();
+    }
 
     /// <summary>
     /// Runs the action on the clicked card. <see cref="GamePresetCardViewModel"/> raises

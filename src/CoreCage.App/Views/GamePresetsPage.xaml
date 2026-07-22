@@ -69,10 +69,77 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+
+        <!-- Sensitivity Sync strip inputs: same NumBox language as TunePage's power/offset/vibrance
+             boxes (dark fill, hairline border, themed caret, visible focus ring via FocusVisual —
+             never FocusVisualStyle="{x:Null}"). -->
+        <Style x:Key="SensBox" TargetType="TextBox">
+            <Setter Property="Background" Value="#FF262A34" />
+            <Setter Property="Foreground" Value="{StaticResource TextHi}" />
+            <Setter Property="BorderBrush" Value="#FF3A3F4B" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="CaretBrush" Value="{StaticResource TextHi}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
+        </Style>
+
+        <!-- Reference-game picker: no custom ControlTemplate (same posture as ChangesExpander above —
+             reuse default ComboBox chrome, themed via Foreground/Background/BorderBrush only), with a
+             visible focus ring so keyboard users can find it. -->
+        <Style x:Key="SensCombo" TargetType="ComboBox">
+            <Setter Property="Background" Value="#FF262A34" />
+            <Setter Property="Foreground" Value="{StaticResource TextHi}" />
+            <Setter Property="BorderBrush" Value="#FF3A3F4B" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
+        </Style>
+
+        <!-- [Sync to all] — same ToolBtn/Accent language as the card Apply button above. -->
+        <Style x:Key="SyncBtn" TargetType="Button" BasedOn="{StaticResource ToolBtn}">
+            <Setter Property="Background" Value="{StaticResource Accent}" />
+        </Style>
+
+        <!-- Sensitivity-row status text: reuses the same low-emphasis feedback language as
+             GamePresetCardViewModel's StatusText, just smaller (caption) since each row is compact. -->
+        <Style x:Key="SensRowStatus" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextLo}" />
+            <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
+        <!-- Sync strip vs. empty state: same DataTrigger-driven visibility approach as CardsScroller —
+             hide the ItemsControl of rows and show a short explanatory note when there's nothing to
+             sync yet (no tunable games detected, or no reference game picked). -->
+        <Style x:Key="SensRowsList" TargetType="ItemsControl">
+            <Setter Property="Visibility" Value="Visible" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Sensitivity.Rows.Count}" Value="0">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="SensEmptyNote" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextLo}" />
+            <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,12,0,0" />
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Sensitivity.Rows.Count}" Value="0">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
     <Grid Margin="32,28,32,28">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -83,8 +150,81 @@
                    Margin="0,4,0,16" TextWrapping="Wrap"
                    Text="Per-game max-FPS graphics presets. Close a game before applying — CoreCage always backs up the config first, so Restore puts it back exactly as it was." />
 
+        <!-- Sensitivity Sync strip: pick a reference game + sens, CoreCage computes the equivalent-feel
+             value (matching cm/360) for every other tunable game and writes it through the same
+             GameTuneService safety gate the cards use (closed-game check, backup-before-write). -->
+        <Border Grid.Row="2" Background="{StaticResource Panel}" CornerRadius="12" Padding="20" Margin="0,0,0,20">
+            <StackPanel>
+                <TextBlock Text="Sensitivity Sync" Foreground="{StaticResource TextHi}"
+                           FontSize="{StaticResource FontSizeHeading}" FontWeight="SemiBold" />
+                <TextBlock Foreground="{StaticResource TextLo}" FontSize="{StaticResource FontSizeBody}"
+                           Margin="0,4,0,12" TextWrapping="Wrap"
+                           Text="Match your aim feel across games. Pick the game your sensitivity is dialed in for, enter that sens + your mouse DPI, then sync it to every other tunable game." />
+
+                <Grid Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" MinWidth="180" />
+                        <ColumnDefinition Width="Auto" MinWidth="110" />
+                        <ColumnDefinition Width="Auto" MinWidth="90" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ComboBox Grid.Column="0" Style="{StaticResource SensCombo}" Margin="0,0,10,0"
+                              ItemsSource="{Binding Sensitivity.TunableGames}"
+                              DisplayMemberPath="DisplayName" SelectedValuePath="GameId"
+                              SelectedValue="{Binding Sensitivity.ReferenceGameId, Mode=TwoWay}"
+                              AutomationProperties.Name="Reference game" />
+
+                    <TextBox Grid.Column="1" Style="{StaticResource SensBox}" Margin="0,0,10,0"
+                              Text="{Binding Sensitivity.ReferenceSens, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              AutomationProperties.Name="Reference sensitivity"
+                              AutomationProperties.HelpText="Your current sensitivity in the reference game" />
+
+                    <TextBox Grid.Column="2" Style="{StaticResource SensBox}" Margin="0,0,10,0"
+                              Text="{Binding Sensitivity.Dpi, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              AutomationProperties.Name="Mouse DPI"
+                              AutomationProperties.HelpText="Your mouse DPI, used only for the cm/360 display" />
+
+                    <Button Grid.Column="3" Content="Sync to all" Style="{StaticResource SyncBtn}"
+                            Click="SyncAll_Click"
+                            AutomationProperties.Name="Sync to all"
+                            AutomationProperties.HelpText="Compute and write the equivalent sensitivity into every tunable game's config" />
+                </Grid>
+
+                <ItemsControl Style="{StaticResource SensRowsList}" ItemsSource="{Binding Sensitivity.Rows}" Margin="0,12,0,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" MinWidth="180" />
+                                    <ColumnDefinition Width="Auto" MinWidth="110" />
+                                    <ColumnDefinition Width="Auto" MinWidth="130" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding DisplayName}" Foreground="{StaticResource TextHi}"
+                                           FontSize="{StaticResource FontSizeBody}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding TargetSens, StringFormat={}{0:F2}}"
+                                           Foreground="{StaticResource TextHi}" FontSize="{StaticResource FontSizeBody}"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="{Binding Cm360, StringFormat={}{0:F1} cm/360}"
+                                           Foreground="{StaticResource TextLo}" FontSize="{StaticResource FontSizeBody}"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="{Binding StatusText}" Style="{StaticResource SensRowStatus}"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Empty state: never a silent blank strip — explains why there's nothing to sync yet
+                     (no tunable games detected, or reference game not picked). -->
+                <TextBlock Style="{StaticResource SensEmptyNote}"
+                           Text="No games with a known sensitivity profile detected yet, or no reference game selected. Pick a reference game above to see synced values here." />
+            </StackPanel>
+        </Border>
+
         <!-- Empty state: never a silent blank panel (mirrors ProcessesPage). -->
-        <Border Grid.Row="2" Background="{StaticResource Panel}" CornerRadius="12" Padding="32"
+        <Border Grid.Row="3" Background="{StaticResource Panel}" CornerRadius="12" Padding="32"
                 Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                 <TextBlock Text="No supported games detected" Foreground="{StaticResource TextHi}"
@@ -95,7 +235,7 @@
             </StackPanel>
         </Border>
 
-        <ScrollViewer Grid.Row="2" Style="{StaticResource CardsScroller}" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer Grid.Row="3" Style="{StaticResource CardsScroller}" VerticalScrollBarVisibility="Auto">
             <ItemsControl x:Name="CardsList" ItemsSource="{Binding Cards}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>

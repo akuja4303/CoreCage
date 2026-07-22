@@ -22,7 +22,8 @@ namespace CoreCage.Tests.GameTune
         private static DetectedGame Arc(string cfg) => new(
             "arc", "PioneerGame.exe", "Arc Raiders",
             new GraphicsBlock("unreal-ini", cfg, new[] { Path.GetDirectoryName(cfg)! },
-                new Dictionary<string, string> { ["MotionBlur"] = "0" }, false, null));
+                new Dictionary<string, string> { ["MotionBlur"] = "0" }, false, null),
+            null);
 
         [TestMethod]
         public void Card_ReadyGame_CanApply_NotRestore()
@@ -60,7 +61,7 @@ namespace CoreCage.Tests.GameTune
         public void Card_NoGraphics_IsNotSupported()
         {
             var (svc, _) = Svc(running: false);
-            var game = new DetectedGame("repo", "REPO.exe", "R.E.P.O.", null);
+            var game = new DetectedGame("repo", "REPO.exe", "R.E.P.O.", null, null);
             var card = new GamePresetsViewModel(svc, new[] { game }).Cards[0];
             Assert.AreEqual(CardState.NotSupported, card.State);
             Assert.IsFalse(card.CanApply);
@@ -103,7 +104,7 @@ namespace CoreCage.Tests.GameTune
         public void Card_NoGraphics_Refresh_StaysNotSupported()
         {
             var (svc, _) = Svc(running: false);
-            var game = new DetectedGame("repo", "REPO.exe", "R.E.P.O.", null);
+            var game = new DetectedGame("repo", "REPO.exe", "R.E.P.O.", null, null);
             var card = new GamePresetsViewModel(svc, new[] { game }).Cards[0];
             card.Refresh();
             Assert.AreEqual(CardState.NotSupported, card.State);

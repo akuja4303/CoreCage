@@ -8,8 +8,10 @@ namespace CoreCage.App.ViewModels
 {
     public enum CardState { Ready, Applied, GameRunning, NotSupported, ConfigNotFound, Error }
 
-    /// <summary>A detected game plus the (optional) graphics preset context the UI needs.</summary>
-    public sealed record DetectedGame(string GameId, string ExeName, string DisplayName, GraphicsBlock? Graphics);
+    /// <summary>A detected game plus the (optional) graphics preset context the UI needs, and the
+    /// (optional) mouse-sensitivity context the Sensitivity Sync strip needs.</summary>
+    public sealed record DetectedGame(string GameId, string ExeName, string DisplayName, GraphicsBlock? Graphics,
+        SensitivityBlock? Sensitivity);
 
     /// <summary>State machine for one game card: computes its state/affordances from the last
     /// GameTune result and drives Apply/Restore through the service. Implements INotifyPropertyChanged

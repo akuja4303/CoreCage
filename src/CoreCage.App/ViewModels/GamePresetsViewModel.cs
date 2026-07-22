@@ -10,9 +10,14 @@ namespace CoreCage.App.ViewModels
         public IReadOnlyList<GamePresetCardViewModel> Cards { get; }
         public bool IsEmpty => Cards.Count == 0;
 
+        /// <summary>Backs the Sensitivity Sync strip shown above the cards — same DataContext (this
+        /// VM), same GameTuneService + detected-games list the cards were built from.</summary>
+        public SensitivitySyncViewModel Sensitivity { get; }
+
         public GamePresetsViewModel(GameTuneService svc, IReadOnlyList<DetectedGame> detected)
         {
             Cards = detected.Select(g => new GamePresetCardViewModel(svc, g)).ToList();
+            Sensitivity = new SensitivitySyncViewModel(svc, detected);
         }
     }
 }
