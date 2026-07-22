@@ -28,9 +28,16 @@ namespace CoreCage.Core.GameTune
 
             foreach (var root in safeRoots)
             {
-                var r = Path.GetFullPath(Expand(root)).TrimEnd('\\');
-                if (full.StartsWith(r + "\\", StringComparison.OrdinalIgnoreCase))
-                    return true;
+                try
+                {
+                    var r = Path.GetFullPath(Expand(root)).TrimEnd('\\');
+                    if (full.StartsWith(r + "\\", StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+                catch
+                {
+                    continue;
+                }
             }
             return false;
         }

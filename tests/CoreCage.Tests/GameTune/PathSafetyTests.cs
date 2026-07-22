@@ -36,5 +36,12 @@ namespace CoreCage.Tests.GameTune
             var roots = new List<string> { @"F:\SteamLibrary" };
             Assert.IsFalse(PathSafety.IsSafe(@"F:\SteamLibrary\steamapps\common\Game\config.ini", roots));
         }
+
+        [TestMethod]
+        public void IsSafe_MalformedSafeRoot_ReturnsFalse_DoesNotThrow()
+        {
+            var roots = new List<string> { "|invalid|path" };
+            Assert.IsFalse(PathSafety.IsSafe(@"C:\Users\x\AppData\Local\Game\config.ini", roots));
+        }
     }
 }
