@@ -15,14 +15,21 @@ namespace CoreCage.App.Views;
 /// pattern as every other section (ShellViewModel puts a ViewModel into ContentControl.Content,
 /// MainWindow's DataTemplate resolves this View, and DataContext is inherited from the
 /// ContentPresenter — never set here). The one difference from the other pages: the card VM
-/// (<see cref="GamePresetCardViewModel"/>, Task 8) is a plain class with no ICommand/
-/// INotifyPropertyChanged, so Apply/Restore are wired as Click handlers here instead of Command
-/// bindings, and the card's post-action state is surfaced by rebuilding the ItemsControl's
-/// containers (see <see cref="RunAndRefresh"/>).
+/// (<see cref="GamePresetCardViewModel"/>) has no ICommand, so Apply/Restore are wired as Click
+/// handlers here instead of Command bindings. The card VM does implement INotifyPropertyChanged, so
+/// its post-action state (State/StatusText/BackupPath/CanApply/CanRestore) updates the bound
+/// controls in place — no container rebuild, no lost keyboard focus.
 /// </summary>
 public partial class GamePresetsPage : UserControl
 {
-    public GamePresetsPage() => InitializeComponent();
+    public GamePresetsPage()
+    {
+        InitializeComponent();
+        // Best-effort default focus for keyboard users: land on the cards list itself rather than
+        // nothing at all. Focusing a specific DataTemplate-generated Apply button reliably requires
+        // container-generation-complete plumbing that isn't worth the complexity here.
+        Loaded += (_, _) => CardsList.Focus();
+    }
 
     /// <summary>
     /// Builds the real, production <see cref="GamePresetsViewModel"/>: a <see cref="GameTuneService"/>
@@ -62,23 +69,17 @@ public partial class GamePresetsPage : UserControl
     private static bool IsGameRunning(string exeName) =>
         Process.GetProcessesByName(Path.GetFileNameWithoutExtension(exeName)).Length > 0;
 
-    private void Apply_Click(object sender, RoutedEventArgs e) => RunAndRefresh(sender, card => card.Apply());
-    private void Restore_Click(object sender, RoutedEventArgs e) => RunAndRefresh(sender, card => card.Restore());
+    private void Apply_Click(object sender, RoutedEventArgs e) => Run(sender, card => card.Apply());
+    private void Restore_Click(object sender, RoutedEventArgs e) => Run(sender, card => card.Restore());
 
     /// <summary>
-    /// Runs the action on the clicked card, then forces the ItemsControl to rebuild its item
-    /// containers. <see cref="GamePresetCardViewModel"/> updates its State/StatusText/BackupPath/
-    /// CanApply/CanRestore in place but raises no change notification (Task 8's design), so a fresh
-    /// binding pass — created by resetting ItemsSource — is what actually gets the new values (already
-    /// current on the same instance) onto the screen. Cheap: at most a handful of game cards.
+    /// Runs the action on the clicked card. <see cref="GamePresetCardViewModel"/> raises
+    /// INotifyPropertyChanged for State/StatusText/BackupPath/CanApply/CanRestore, so the bound
+    /// controls on the same container update in place — the clicked button keeps keyboard focus.
     /// </summary>
-    private void RunAndRefresh(object sender, Action<GamePresetCardViewModel> action)
+    private static void Run(object sender, Action<GamePresetCardViewModel> action)
     {
         if (sender is not FrameworkElement { DataContext: GamePresetCardViewModel card }) return;
         action(card);
-
-        if (DataContext is not GamePresetsViewModel vm) return;
-        CardsList.ItemsSource = null;
-        CardsList.ItemsSource = vm.Cards;
     }
 }

@@ -1,4 +1,7 @@
+using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using CoreCage.Core.GameTune;
 
 namespace CoreCage.App.ViewModels
@@ -9,17 +12,68 @@ namespace CoreCage.App.ViewModels
     public sealed record DetectedGame(string GameId, string ExeName, string DisplayName, GraphicsBlock? Graphics);
 
     /// <summary>State machine for one game card: computes its state/affordances from the last
-    /// GameTune result and drives Apply/Restore through the service.</summary>
-    public sealed class GamePresetCardViewModel
+    /// GameTune result and drives Apply/Restore through the service. Implements INotifyPropertyChanged
+    /// so the UI updates in place (no ItemsControl container rebuild, which would blow away keyboard
+    /// focus on the button the user just clicked).</summary>
+    public sealed class GamePresetCardViewModel : INotifyPropertyChanged
     {
         private readonly GameTuneService _svc;
         private readonly DetectedGame _game;
 
+        public event PropertyChangedEventHandler? PropertyChanged;
+
         public string DisplayName => _game.DisplayName;
-        public CardState State { get; private set; }
-        public string StatusText { get; private set; } = "";
-        public IReadOnlyList<GraphicsChange> LastChanges { get; private set; } = System.Array.Empty<GraphicsChange>();
-        public string? BackupPath { get; private set; }
+
+        private CardState _state;
+        public CardState State
+        {
+            get => _state;
+            private set
+            {
+                if (_state == value) return;
+                _state = value;
+                OnPropertyChanged();
+                // CanApply/CanRestore are derived from State — no independent backing field, so they
+                // need their own notification whenever State changes.
+                OnPropertyChanged(nameof(CanApply));
+                OnPropertyChanged(nameof(CanRestore));
+            }
+        }
+
+        private string _statusText = "";
+        public string StatusText
+        {
+            get => _statusText;
+            private set
+            {
+                if (_statusText == value) return;
+                _statusText = value;
+                OnPropertyChanged();
+            }
+        }
+
+        private IReadOnlyList<GraphicsChange> _lastChanges = Array.Empty<GraphicsChange>();
+        public IReadOnlyList<GraphicsChange> LastChanges
+        {
+            get => _lastChanges;
+            private set
+            {
+                _lastChanges = value;
+                OnPropertyChanged();
+            }
+        }
+
+        private string? _backupPath;
+        public string? BackupPath
+        {
+            get => _backupPath;
+            private set
+            {
+                if (_backupPath == value) return;
+                _backupPath = value;
+                OnPropertyChanged();
+            }
+        }
 
         public bool CanApply => State is CardState.Ready or CardState.ConfigNotFound or CardState.Error;
         public bool CanRestore => State is CardState.Applied;
@@ -60,5 +114,8 @@ namespace CoreCage.App.ViewModels
                 _                           => CardState.Error
             };
         }
+
+        private void OnPropertyChanged([CallerMemberName] string? name = null) =>
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 }

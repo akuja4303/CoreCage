@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using CoreCage.App.ViewModels;
 
 namespace CoreCage.App;
 
@@ -38,13 +39,19 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
     public ShellViewModel()
         : this(new OptimizeViewModel(), new MonitorViewModel(), new TuneViewModel(),
-               new SystemViewModel(), new ProcessesViewModel(), new ProfilesViewModel(), new SettingsViewModel())
+               new SystemViewModel(), new ProcessesViewModel(), new ProfilesViewModel(),
+               // Built here (not constructor-injected in the general sense) because this is the ONE
+               // real production call site — GamePresetsViewModel wraps a real GameTuneService
+               // (filesystem backups + live process check) with no fakeable I*Service interface to
+               // inject a fake for outside tests, same as the other six groups' real services below.
+               Views.GamePresetsPage.BuildViewModel(),
+               new SettingsViewModel())
     {
     }
 
     public ShellViewModel(OptimizeViewModel optimize, MonitorViewModel monitor, TuneViewModel tune,
                           SystemViewModel system, ProcessesViewModel processes, ProfilesViewModel profiles,
-                          SettingsViewModel settings)
+                          GamePresetsViewModel gamePresets, SettingsViewModel settings)
     {
         _monitor = monitor;
         _tune = tune;
@@ -69,11 +76,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             ["system"]      = system,
             ["processes"]   = processes,
             ["profiles"]    = profiles,
-            // Not constructor-injected like the other seven groups: GamePresetsViewModel wraps a real
-            // GameTuneService (filesystem backups + live process check) rather than a fakeable
-            // I*Service interface (Task 8's design), so there's nothing a test would substitute here.
-            // Built by the page itself so the Shell doesn't need to know GameTune's construction details.
-            ["gamepresets"] = Views.GamePresetsPage.BuildViewModel(),
+            ["gamepresets"] = gamePresets,
             ["settings"]    = settings,
         };
 

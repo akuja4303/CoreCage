@@ -1,5 +1,8 @@
+using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using CoreCage.App;
+using CoreCage.App.ViewModels;
+using CoreCage.Core.GameTune;
 
 namespace CoreCage.Tests;
 
@@ -12,6 +15,17 @@ namespace CoreCage.Tests;
 [TestClass]
 public sealed class ShellViewModelTests
 {
+    // Fake-backed exactly like GamePresetsViewModelTests.Svc(): a real GameTuneService pointed at a
+    // throwaway temp backup dir with a stubbed "is the game running" check, plus an empty game list —
+    // enough to keep this a pure nav test with no real filesystem/process I/O touching CoreCage's
+    // real %LOCALAPPDATA% or Process.GetProcessesByName.
+    private static GamePresetsViewModel FakeGamePresets()
+    {
+        var backupDir = Path.Combine(Path.GetTempPath(), "shellvm_" + Path.GetRandomFileName());
+        var svc = new GameTuneService(new ConfigBackup(backupDir), _ => false);
+        return new GamePresetsViewModel(svc, System.Array.Empty<DetectedGame>());
+    }
+
     private static ShellViewModel NewShell() =>
         new(new OptimizeViewModel(new FakeOptimizeService()),
             new MonitorViewModel(new FakeMonitorService()),
@@ -19,6 +33,7 @@ public sealed class ShellViewModelTests
             new SystemViewModel(new FakeSystemService()),
             new ProcessesViewModel(new FakeProcessService()),
             new ProfilesViewModel(new FakeProfileService()),
+            FakeGamePresets(),
             new SettingsViewModel());
 
     [TestMethod]
@@ -58,6 +73,25 @@ public sealed class ShellViewModelTests
         var shell = NewShell();
         shell.SelectedSection = shell.SectionByKey("tune");
         Assert.IsInstanceOfType(shell.CurrentContent, typeof(TuneViewModel));
+    }
+
+    [TestMethod]
+    public void Selecting_GamePresets_shows_the_real_gamepresets_vm()
+    {
+        var gamePresets = FakeGamePresets();
+        var shell = new ShellViewModel(
+            new OptimizeViewModel(new FakeOptimizeService()),
+            new MonitorViewModel(new FakeMonitorService()),
+            new TuneViewModel(new FakeTuneService()),
+            new SystemViewModel(new FakeSystemService()),
+            new ProcessesViewModel(new FakeProcessService()),
+            new ProfilesViewModel(new FakeProfileService()),
+            gamePresets,
+            new SettingsViewModel());
+
+        shell.SelectedSection = shell.SectionByKey("gamepresets");
+
+        Assert.AreSame(gamePresets, shell.CurrentContent);
     }
 
     [TestMethod]
