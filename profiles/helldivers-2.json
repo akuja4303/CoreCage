@@ -1,0 +1,16 @@
+{
+  "game": "Helldivers 2",
+  "exe": "helldivers2.exe",
+  "graphics": {
+    "format": "stingray-config",
+    "configPath": "%APPDATA%\\Arrowhead\\Helldivers2\\user_settings.config",
+    "safeRoots": ["%APPDATA%"],
+    "competitivePreset": {
+      "motion_blur": "0",
+      "shadow_quality": "0",
+      "texture_quality": "2",
+      "vsync": "0"
+    },
+    "postApplyNotes": "Verify against a real user_settings.config before trusting these keys."
+  }
+}

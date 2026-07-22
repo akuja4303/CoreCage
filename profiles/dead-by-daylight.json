@@ -1,0 +1,16 @@
+{
+  "game": "Dead by Daylight",
+  "exe": "DeadByDaylight-Win64-Shipping.exe",
+  "graphics": {
+    "format": "unreal-ini",
+    "configPath": "%LOCALAPPDATA%\\DeadByDaylight\\Saved\\Config\\Windows\\GameUserSettings.ini",
+    "safeRoots": ["%LOCALAPPDATA%"],
+    "competitivePreset": {
+      "MotionBlur": "0",
+      "sg.ShadowQuality": "0",
+      "sg.TextureQuality": "3",
+      "sg.PostProcessQuality": "0",
+      "bUseVSync": "False"
+    }
+  }
+}

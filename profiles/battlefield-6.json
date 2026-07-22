@@ -1,0 +1,17 @@
+{
+  "game": "Battlefield 6",
+  "exe": "bf6.exe",
+  "graphics": {
+    "format": "frostbite-profsave",
+    "configPath": "%USERPROFILE%\\Documents\\Battlefield 6\\settings\\PROFSAVE_profile",
+    "safeRoots": ["%USERPROFILE%\\Documents"],
+    "competitivePreset": {
+      "GstRender.MotionBlurEnabled": "0",
+      "GstRender.ShadowQuality": "0",
+      "GstRender.TextureQuality": "2",
+      "GstRender.VSyncEnabled": "0",
+      "GstRender.ReflexMode": "1"
+    },
+    "postApplyNotes": "Verify against a real PROFSAVE_profile before trusting these keys."
+  }
+}

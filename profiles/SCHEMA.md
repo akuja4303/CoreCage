@@ -79,3 +79,43 @@ Only `exe` is required — everything else can be omitted and will fall back to 
    unknown tweak id breaks the provenance link to `CoreCage.Core.Ledger.TweakIds` reviewers rely on.
 5. One file per game. If a game already has a profile, open a PR editing that file instead of
    adding a duplicate.
+
+## graphics (optional)
+
+An optional `graphics` block adds an in-game **max-FPS/low-lag competitive preset** that
+CoreCage's GameTune feature can write to the game's own settings file (MotionBlur off, shadows
+low, textures high, upscaling on quality mode, frame-gen off, Reflex/low-latency on, VSync off).
+Loaded onto `CoreCage.Core.GameTune.GraphicsBlock` and mapped onto `GameProfile.Graphics` by
+`CommunityProfileLoader`. Omit the whole block for a game with no curated preset — `Graphics`
+stays `null` and GameTune does nothing for that profile.
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `format` | string | **yes** | Which config-file syntax `configPath` uses. Must be one of the four values `AdapterRegistry.For` recognizes (below) — an unrecognized format throws at apply time (not at load time). |
+| `configPath` | string | **yes** | Absolute path to the game's settings file, with Windows environment variables (`%LOCALAPPDATA%`, `%APPDATA%`, `%USERPROFILE%`, `%PROGRAMFILES(X86)%`, ...) left unexpanded in the JSON — `PathSafety.Expand` expands them at apply time. |
+| `safeRoots` | string[] | **yes** | One or more environment-variable-prefixed directories `configPath` must resolve underneath. `PathSafety.IsSafe` fully resolves `configPath` and refuses to write unless it both (a) starts with one of these roots and (b) does **not** contain a known install-dir marker (`\steamapps\`, `\Epic Games\`, `\Program Files\`, `\Program Files (x86)\`) anywhere in the path — the install-dir check wins even if a safe root would otherwise match, which is exactly why TF2's cfg (which lives under `\steamapps\`) is `guidedOnly: true` instead of auto-applied. |
+| `competitivePreset` | object (string→string) | **yes** | The key/value pairs GameTune writes into the config file to reach the fixed max-FPS/low-lag target. Keys are the config file's own setting names (verbatim, engine-specific — e.g. Unreal's `sg.ShadowQuality`, Frostbite's `GstRender.ShadowQuality`, Source's `r_shadowrendertotexture`); values are always strings, written using the format's own delimiter/quoting rules. |
+| `guidedOnly` | bool | no (default `false`) | When `true`, CoreCage never auto-writes this profile's config — it only *shows* the preset as a copy-paste list for the player to apply by hand. Set this whenever `configPath` legitimately can't pass the safe-root/install-dir gate (e.g. a config that only exists inside the Steam library), so the feature degrades to guided instructions instead of silently doing nothing. |
+| `postApplyNotes` | string | no | Free-text caveat shown after apply (or alongside the guided list) — e.g. a setting that resets itself on next launch, or a flag that the exact keys/path are unverified and need confirming against a real config dump before being trusted blindly. |
+
+### Valid `format` values (`AdapterRegistry.For`)
+
+| `format` | Engine | Delimiter / quoting | Example games |
+|---|---|---|---|
+| `unreal-ini` | Unreal Engine `GameUserSettings.ini` | INI `Key=Value` (own adapter) | Arc Raiders, Dead by Daylight |
+| `frostbite-profsave` | Frostbite `PROFSAVE_profile` | space-delimited, unquoted values | Battlefield 6 |
+| `stingray-config` | Stingray `.config` | `=`-delimited, unquoted values | Helldivers 2 |
+| `source-cfg` | Source engine `.cfg` | space-delimited, quoted values | Team Fortress 2 |
+
+### The safe-root / install-dir rule
+
+A `graphics` block is only ever auto-applied if its fully-resolved `configPath`:
+
+1. starts with one of the fully-resolved `safeRoots` entries, **and**
+2. does not contain `\steamapps\`, `\Epic Games\`, `\Program Files\`, or `\Program Files (x86)\`
+   anywhere in the resolved path.
+
+If either check fails, the write is refused — a profile whose real config path lives inside an
+install directory (as TF2's does) should set `guidedOnly: true` rather than pointing `safeRoots`
+at the install dir; that only produces a write that's silently and permanently refused, not a
+working auto-apply.
