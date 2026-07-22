@@ -73,5 +73,41 @@ namespace CoreCage.Tests.GameTune
             var vm = new GamePresetsViewModel(svc, new DetectedGame[0]);
             Assert.IsTrue(vm.IsEmpty);
         }
+
+        [TestMethod]
+        public void Card_Restore_AfterApply_ReturnsToReady()
+        {
+            var (svc, cfg) = Svc(running: false);
+            var card = new GamePresetsViewModel(svc, new[] { Arc(cfg) }).Cards[0];
+            card.Apply();
+            Assert.AreEqual(CardState.Applied, card.State);
+            card.Restore();
+            Assert.AreEqual(CardState.Ready, card.State);
+            Assert.IsFalse(card.CanRestore);
+            Assert.IsTrue(card.CanApply);
+        }
+
+        [TestMethod]
+        public void Card_Refresh_FromGameRunning_ResetsToReady()
+        {
+            var (svc, cfg) = Svc(running: true);
+            var card = new GamePresetsViewModel(svc, new[] { Arc(cfg) }).Cards[0];
+            card.Apply();
+            Assert.AreEqual(CardState.GameRunning, card.State);
+            card.Refresh();
+            Assert.AreEqual(CardState.Ready, card.State);
+            Assert.IsTrue(card.CanApply);
+        }
+
+        [TestMethod]
+        public void Card_NoGraphics_Refresh_StaysNotSupported()
+        {
+            var (svc, _) = Svc(running: false);
+            var game = new DetectedGame("repo", "REPO.exe", "R.E.P.O.", null);
+            var card = new GamePresetsViewModel(svc, new[] { game }).Cards[0];
+            card.Refresh();
+            Assert.AreEqual(CardState.NotSupported, card.State);
+            Assert.IsFalse(card.CanApply);
+        }
     }
 }

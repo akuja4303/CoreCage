@@ -27,12 +27,22 @@ namespace CoreCage.App.ViewModels
         public GamePresetCardViewModel(GameTuneService svc, DetectedGame game)
         {
             _svc = svc; _game = game;
-            State = (game.Graphics is null || game.Graphics.GuidedOnly) ? CardState.NotSupported : CardState.Ready;
-            StatusText = State == CardState.NotSupported ? "Guided only — no auto-apply." : "Ready to apply Max-FPS.";
+            ComputeInitialState();
         }
 
         public void Apply() => Absorb(_svc.Apply(_game.GameId, _game.ExeName, _game.Graphics));
         public void Restore() => Absorb(_svc.Restore(_game.GameId, _game.ExeName, _game.Graphics));
+
+        /// <summary>Recomputes the card's initial state (e.g. after a transient failure like
+        /// GameRunning/ConfigNotFound/Error) so the user can retry Apply without rebuilding the VM.
+        /// Preserves BackupPath — does not clear the last known backup location.</summary>
+        public void Refresh() => ComputeInitialState();
+
+        private void ComputeInitialState()
+        {
+            State = (_game.Graphics is null || _game.Graphics.GuidedOnly) ? CardState.NotSupported : CardState.Ready;
+            StatusText = State == CardState.NotSupported ? "Guided only — no auto-apply." : "Ready to apply Max-FPS.";
+        }
 
         private void Absorb(GameTuneResult r)
         {
