@@ -28,7 +28,11 @@ namespace CoreCage.Core.GameTune
 
         public GraphicsApplyPlan Plan(GraphicsReadResult current, IReadOnlyDictionary<string, string> preset)
         {
-            var cur = current.Settings.ToDictionary(s => s.Key, s => s.CurrentValue, StringComparer.OrdinalIgnoreCase);
+            // First-occurrence-wins: real ini files repeat key names across sections, so a plain
+            // ToDictionary would throw on the second duplicate. Later duplicates are ignored.
+            var cur = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var s in current.Settings)
+                if (!cur.ContainsKey(s.Key)) cur[s.Key] = s.CurrentValue;
             var changes = new List<GraphicsChange>();
             foreach (var kv in preset)
             {
@@ -52,7 +56,13 @@ namespace CoreCage.Core.GameTune
                 var eq = t.IndexOf('=');
                 if (eq <= 0 || t.StartsWith(";") || t.StartsWith("[")) continue;
                 var key = t.Substring(0, eq).Trim();
-                if (toSet.TryGetValue(key, out var val)) { lines[i] = $"{key}={val}"; written.Add(key); }
+                // Only the FIRST matching line for a given key is updated; later duplicate-key
+                // lines (e.g. the same key repeated under a different section) are left as-is.
+                if (!written.Contains(key) && toSet.TryGetValue(key, out var val))
+                {
+                    lines[i] = $"{key}={val}";
+                    written.Add(key);
+                }
             }
             // Append any preset key that had no existing line, under the last section (or file end).
             foreach (var kv in toSet)
